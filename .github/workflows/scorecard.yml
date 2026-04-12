@@ -1,0 +1,35 @@
+name: OpenSSF Scorecard
+
+on:
+  workflow_dispatch:  # manual-only; re-enable push/schedule once repo is public
+
+permissions:
+  security-events: write
+  id-token: write
+  actions: read
+  contents: read
+
+jobs:
+  analyze:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ossf/scorecard-action@v2.4.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SARIF file
+          path: results.sarif
+          retention-days: 5
+
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
