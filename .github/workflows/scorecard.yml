@@ -1,7 +1,11 @@
 name: OpenSSF Scorecard
 
 on:
-  workflow_dispatch:  # manual-only; re-enable push/schedule once repo is public
+  push:
+    branches: ["main"]
+  schedule:
+    - cron: "0 6 * * 1"  # weekly Monday 6am UTC
+  workflow_dispatch:
 
 permissions:
   security-events: write
