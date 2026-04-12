@@ -26,7 +26,7 @@ func TestRunGrype_ParsesSBOMMatches(t *testing.T) {
 		}`), nil
 	}
 
-	matches, err := RunGrype(context.Background(), ScanInput{Type: ScanSBOM, Path: "/fake/sbom.json"}, "", "")
+	matches, err := RunGrype(t.Context(), ScanInput{Type: ScanSBOM, Path: "/fake/sbom.json"}, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestRunGrype_OCIArchiveInput(t *testing.T) {
 		return []byte(`{"matches":[]}`), nil
 	}
 
-	_, err := RunGrype(context.Background(), ScanInput{Type: ScanOCIArchive, Path: "/fake/image.tar"}, "", "")
+	_, err := RunGrype(t.Context(), ScanInput{Type: ScanOCIArchive, Path: "/fake/image.tar"}, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestRunGrype_GrypeConfigPassedThrough(t *testing.T) {
 		return []byte(`{"matches":[]}`), nil
 	}
 
-	_, err := RunGrype(context.Background(), ScanInput{Type: ScanSBOM, Path: "/sbom.json"}, "/project/.grype.yaml", "")
+	_, err := RunGrype(t.Context(), ScanInput{Type: ScanSBOM, Path: "/sbom.json"}, "/project/.grype.yaml", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestRunGrype_DBCacheEnvSet(t *testing.T) {
 		return []byte(`{"matches":[]}`), nil
 	}
 
-	_, err := RunGrype(context.Background(), ScanInput{Type: ScanSBOM, Path: "/sbom.json"}, "", "/ci/grype-cache")
+	_, err := RunGrype(t.Context(), ScanInput{Type: ScanSBOM, Path: "/sbom.json"}, "", "/ci/grype-cache")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestRunGrype_EmptyOutput_ReturnsError(t *testing.T) {
 		return []byte{}, fmt.Errorf("grype: exit status 2")
 	}
 
-	_, err := RunGrype(context.Background(), ScanInput{Type: ScanSBOM, Path: "/sbom.json"}, "", "")
+	_, err := RunGrype(t.Context(), ScanInput{Type: ScanSBOM, Path: "/sbom.json"}, "", "")
 	if err == nil {
 		t.Error("expected error when grype output is empty")
 	}

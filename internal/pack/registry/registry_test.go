@@ -33,7 +33,7 @@ func TestDetectAll_SortsByConfidence(t *testing.T) {
 	Register(&mockPack{name: "high", result: &types.DetectResult{PackName: "high", Confidence: 0.9}})
 	Register(&mockPack{name: "mid", result: &types.DetectResult{PackName: "mid", Confidence: 0.6}})
 
-	results, err := DetectAll(context.Background(), "/tmp")
+	results, err := DetectAll(t.Context(), "/tmp")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestDetectAll_SkipsNil(t *testing.T) {
 	Register(&mockPack{name: "nope", result: nil})
 	Register(&mockPack{name: "yes", result: &types.DetectResult{PackName: "yes", Confidence: 0.8}})
 
-	results, _ := DetectAll(context.Background(), "/tmp")
+	results, _ := DetectAll(t.Context(), "/tmp")
 	if len(results) != 1 {
 		t.Fatalf("expected 1, got %d", len(results))
 	}
@@ -65,7 +65,7 @@ func TestDetectBest(t *testing.T) {
 	Register(&mockPack{name: "weak", result: &types.DetectResult{PackName: "weak", Confidence: 0.5}})
 	Register(&mockPack{name: "strong", result: &types.DetectResult{PackName: "strong", Confidence: 0.95}})
 
-	best, _ := DetectBest(context.Background(), "/tmp")
+	best, _ := DetectBest(t.Context(), "/tmp")
 	if best == nil || best.Pack.Name() != "strong" {
 		t.Errorf("expected 'strong'")
 	}

@@ -1,7 +1,6 @@
 package wolfi
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +16,7 @@ func TestBackend_Name(t *testing.T) {
 
 func TestBackend_Available_ReturnsBool(t *testing.T) {
 	b := &Backend{}
-	ok, reason := b.Available(context.Background())
+	ok, reason := b.Available(t.Context())
 	// We can't assert a specific value since the test environment may or may not
 	// have melange/apko. Verify the contract: if unavailable, reason must be set.
 	if !ok && reason == "" {

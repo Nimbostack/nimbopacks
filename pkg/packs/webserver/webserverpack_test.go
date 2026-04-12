@@ -1,7 +1,6 @@
 package webpack
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +20,7 @@ func writeFile(t *testing.T, dir, name, content string) {
 
 func TestDetect_NoWeb(t *testing.T) {
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), t.TempDir())
+	res, _ := p.Detect(t.Context(), t.TempDir())
 	if res != nil {
 		t.Fatal("expected nil for non-web project")
 	}
@@ -32,7 +31,7 @@ func TestDetect_StaticHTML(t *testing.T) {
 	writeFile(t, dir, "index.html", "<html><body>hello</body></html>")
 
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), dir)
+	res, err := p.Detect(t.Context(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +51,7 @@ func TestDetect_PreBuiltDist(t *testing.T) {
 	writeFile(t, dir, "dist/index.html", "<html></html>")
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res == nil {
 		t.Fatal("expected detection")
 	}
@@ -67,7 +66,7 @@ func TestDetect_ViteReact(t *testing.T) {
 	writeFile(t, dir, "package.json", `{"dependencies": {"react": "^18.0.0"}}`)
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res == nil {
 		t.Fatal("expected detection")
 	}
@@ -87,7 +86,7 @@ func TestDetect_Angular(t *testing.T) {
 	writeFile(t, dir, "angular.json", "{}")
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res == nil {
 		t.Fatal("expected detection")
 	}
@@ -104,7 +103,7 @@ func TestDetect_Hugo(t *testing.T) {
 	}
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res == nil {
 		t.Fatal("expected detection")
 	}
@@ -122,7 +121,7 @@ func TestDetect_CustomNginxConf(t *testing.T) {
 	writeFile(t, dir, "nginx.conf", "worker_processes 1;")
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res == nil {
 		t.Fatal("expected detection")
 	}
@@ -137,7 +136,7 @@ func TestDetect_NginxConfInSubdir(t *testing.T) {
 	writeFile(t, dir, "config/nginx.conf", "worker_processes 1;")
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res.Metadata["has_nginx_conf"] != "true" {
 		t.Error("expected nginx conf detection in config/")
 	}
@@ -151,9 +150,9 @@ func TestPlan_DefaultNginxConf(t *testing.T) {
 	writeFile(t, dir, "index.html", "<html></html>")
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, _ := p.GenerateConfig(context.Background(), dir, det, "web-static")
-	plan, err := p.Plan(context.Background(), dir, cfg)
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, _ := p.GenerateConfig(t.Context(), dir, det, "web-static")
+	plan, err := p.Plan(t.Context(), dir, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,9 +187,9 @@ func TestPlan_WithBuildStep(t *testing.T) {
 	writeFile(t, dir, "package.json", `{"dependencies": {"react": "^18"}}`)
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, _ := p.GenerateConfig(context.Background(), dir, det, "web-spa")
-	plan, err := p.Plan(context.Background(), dir, cfg)
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, _ := p.GenerateConfig(t.Context(), dir, det, "web-spa")
+	plan, err := p.Plan(t.Context(), dir, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

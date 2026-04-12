@@ -128,7 +128,7 @@ func getVersion(path string) string {
 // GitHub release tags, which always use the "v" prefix.
 func normalizeVersion(raw string) string {
 	// Find first token that looks like a version (optional v + digits.digits.digits).
-	for _, token := range strings.Fields(raw) {
+	for token := range strings.FieldsSeq(raw) {
 		t := strings.TrimPrefix(token, "v")
 		parts := strings.SplitN(t, ".", 3)
 		if len(parts) >= 2 {

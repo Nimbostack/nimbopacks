@@ -1,7 +1,6 @@
 package golangpack
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,7 +19,7 @@ func writeFile(t *testing.T, dir, name, content string) {
 
 func TestDetect_NoGoMod(t *testing.T) {
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), t.TempDir())
+	res, err := p.Detect(t.Context(), t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +34,7 @@ func TestDetect_BasicProject(t *testing.T) {
 	writeFile(t, dir, "main.go", "package main\nfunc main() {}\n")
 
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), dir)
+	res, err := p.Detect(t.Context(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +58,7 @@ func TestDetect_CmdLayout(t *testing.T) {
 	writeFile(t, dir, "cmd/server/main.go", "package main\nfunc main() {}\n")
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res.Metadata["entrypoint"] != "./cmd/server" {
 		t.Errorf("expected ./cmd/server, got %s", res.Metadata["entrypoint"])
 	}
@@ -73,7 +72,7 @@ func TestDetect_GRPCSuggestsTemplate(t *testing.T) {
 	writeFile(t, dir, "go.mod", "module example.com/svc\ngo 1.22\nrequire google.golang.org/grpc v1.60.0\n")
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res.SuggestedTemplate != "go-grpc" {
 		t.Errorf("expected go-grpc, got %s", res.SuggestedTemplate)
 	}
@@ -84,8 +83,8 @@ func TestGenerateConfig(t *testing.T) {
 	writeFile(t, dir, "go.mod", "module github.com/example/myapp\ngo 1.22\n")
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, err := p.GenerateConfig(context.Background(), dir, det, "go")
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, err := p.GenerateConfig(t.Context(), dir, det, "go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,9 +101,9 @@ func TestPlan(t *testing.T) {
 	writeFile(t, dir, "go.mod", "module github.com/example/myapp\ngo 1.22\n")
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, _ := p.GenerateConfig(context.Background(), dir, det, "go")
-	plan, err := p.Plan(context.Background(), dir, cfg)
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, _ := p.GenerateConfig(t.Context(), dir, det, "go")
+	plan, err := p.Plan(t.Context(), dir, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

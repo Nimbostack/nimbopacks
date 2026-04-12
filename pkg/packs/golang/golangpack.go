@@ -28,7 +28,7 @@ func (p *Pack) Detect(_ context.Context, srcDir string) (*types.DetectResult, er
 	meta := make(map[string]string)
 
 	if content, err := pack.ReadFile(srcDir, "go.mod"); err == nil {
-		for _, line := range strings.Split(content, "\n") {
+		for line := range strings.SplitSeq(content, "\n") {
 			line = strings.TrimSpace(line)
 			if mod, ok := strings.CutPrefix(line, "module "); ok {
 				meta["module_path"] = mod

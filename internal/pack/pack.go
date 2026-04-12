@@ -92,7 +92,7 @@ func ContainsLine(srcDir, filename string, pred func(string) bool) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	for _, line := range strings.Split(content, "\n") {
+	for line := range strings.SplitSeq(content, "\n") {
 		if pred(strings.TrimSpace(line)) {
 			return true, nil
 		}

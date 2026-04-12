@@ -1,7 +1,6 @@
 package nodepack
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,7 +19,7 @@ func writeFile(t *testing.T, dir, name, content string) {
 
 func TestDetect_NoPackageJSON(t *testing.T) {
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), t.TempDir())
+	res, err := p.Detect(t.Context(), t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +33,7 @@ func TestDetect_BasicNodeProject(t *testing.T) {
 	writeFile(t, dir, "package.json", `{"name":"myapp","dependencies":{}}`)
 
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), dir)
+	res, err := p.Detect(t.Context(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +56,7 @@ func TestDetect_NextJSSuggestsTemplate(t *testing.T) {
 	writeFile(t, dir, "package.json", `{"name":"site","dependencies":{"next":"14.0.0","react":"18.0.0"}}`)
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res.SuggestedTemplate != "node-nextjs" {
 		t.Errorf("expected node-nextjs, got %s", res.SuggestedTemplate)
 	}
@@ -72,7 +71,7 @@ func TestDetect_TypeScriptProject(t *testing.T) {
 	writeFile(t, dir, "tsconfig.json", `{"compilerOptions":{}}`)
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res.Metadata["typescript"] != "true" {
 		t.Error("expected typescript=true")
 	}
@@ -84,7 +83,7 @@ func TestDetect_YarnLockfileDetected(t *testing.T) {
 	writeFile(t, dir, "yarn.lock", "# yarn lockfile v1\n")
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res.Metadata["pm"] != "yarn" {
 		t.Errorf("expected pm=yarn, got %s", res.Metadata["pm"])
 	}
@@ -95,8 +94,8 @@ func TestGenerateConfig(t *testing.T) {
 	writeFile(t, dir, "package.json", `{"name":"myapi","dependencies":{"express":"4.18.0"}}`)
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, err := p.GenerateConfig(context.Background(), dir, det, "node-express")
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, err := p.GenerateConfig(t.Context(), dir, det, "node-express")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,9 +115,9 @@ func TestPlan(t *testing.T) {
 	writeFile(t, dir, "package.json", `{"name":"myapi","dependencies":{}}`)
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, _ := p.GenerateConfig(context.Background(), dir, det, "node-express")
-	plan, err := p.Plan(context.Background(), dir, cfg)
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, _ := p.GenerateConfig(t.Context(), dir, det, "node-express")
+	plan, err := p.Plan(t.Context(), dir, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

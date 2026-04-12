@@ -1,7 +1,6 @@
 package pipeline
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +16,7 @@ func writeFile(t *testing.T, dir, name, content string) {
 
 func TestBuild_MissingConfig(t *testing.T) {
 	dir := t.TempDir()
-	_, err := Build(context.Background(), BuildOptions{SourceDir: dir})
+	_, err := Build(t.Context(), BuildOptions{SourceDir: dir})
 	if err == nil {
 		t.Fatal("expected error when nimpack.yaml is absent")
 	}
@@ -36,7 +35,7 @@ project:
 build:
   pack: golang
 `)
-	_, err := Build(context.Background(), BuildOptions{
+	_, err := Build(t.Context(), BuildOptions{
 		SourceDir:   dir,
 		BackendName: "nonexistent-backend",
 	})
@@ -58,7 +57,7 @@ build:
 	// AutoSelect will fail in CI (no melange/apko), so use explicit backend name
 	// to reach the pack lookup. If no backend is available, the backend step
 	// will error first — either way we get a non-nil error, which is the invariant.
-	_, err := Build(context.Background(), BuildOptions{
+	_, err := Build(t.Context(), BuildOptions{
 		SourceDir: dir,
 	})
 	if err == nil {

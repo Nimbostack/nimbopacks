@@ -1,7 +1,6 @@
 package javapack
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,7 +22,7 @@ func writeFile(t *testing.T, dir, name, content string) {
 
 func TestDetect_NoJava(t *testing.T) {
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), t.TempDir())
+	res, err := p.Detect(t.Context(), t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +36,7 @@ func TestDetect_Maven(t *testing.T) {
 	writeFile(t, dir, "pom.xml", "<project/>")
 
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), dir)
+	res, err := p.Detect(t.Context(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +59,7 @@ func TestDetect_Gradle(t *testing.T) {
 	writeFile(t, dir, "build.gradle", "plugins { id 'java' }")
 
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), dir)
+	res, err := p.Detect(t.Context(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +79,7 @@ func TestDetect_GradleKts(t *testing.T) {
 	writeFile(t, dir, "build.gradle.kts", "plugins { java }")
 
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), dir)
+	res, err := p.Detect(t.Context(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +103,7 @@ dependencies {
 }`)
 
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), dir)
+	res, err := p.Detect(t.Context(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,8 +128,8 @@ func TestGenerateConfig_Maven(t *testing.T) {
 	writeFile(t, dir, "pom.xml", "<project/>")
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, err := p.GenerateConfig(context.Background(), dir, det, "java-maven")
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, err := p.GenerateConfig(t.Context(), dir, det, "java-maven")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,8 +161,8 @@ func TestGenerateConfig_Gradle(t *testing.T) {
 	writeFile(t, dir, "build.gradle", "plugins { id 'java' }")
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, err := p.GenerateConfig(context.Background(), dir, det, "java-gradle")
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, err := p.GenerateConfig(t.Context(), dir, det, "java-gradle")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,9 +189,9 @@ func TestPlan_Maven(t *testing.T) {
 	writeFile(t, dir, "pom.xml", "<project/>")
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, _ := p.GenerateConfig(context.Background(), dir, det, "java-maven")
-	plan, err := p.Plan(context.Background(), dir, cfg)
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, _ := p.GenerateConfig(t.Context(), dir, det, "java-maven")
+	plan, err := p.Plan(t.Context(), dir, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,9 +214,9 @@ func TestPlan_Gradle(t *testing.T) {
 	writeFile(t, dir, "build.gradle", "plugins { id 'java' }")
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, _ := p.GenerateConfig(context.Background(), dir, det, "java-gradle")
-	plan, err := p.Plan(context.Background(), dir, cfg)
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, _ := p.GenerateConfig(t.Context(), dir, det, "java-gradle")
+	plan, err := p.Plan(t.Context(), dir, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

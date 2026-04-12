@@ -1,7 +1,6 @@
 package pythonpack
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,7 +19,7 @@ func writeFile(t *testing.T, dir, name, content string) {
 
 func TestDetect_NoPythonFiles(t *testing.T) {
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), t.TempDir())
+	res, err := p.Detect(t.Context(), t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +33,7 @@ func TestDetect_RequirementsTxt(t *testing.T) {
 	writeFile(t, dir, "requirements.txt", "flask==3.0.0\n")
 
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), dir)
+	res, err := p.Detect(t.Context(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +53,7 @@ func TestDetect_PyprojectTomlPoetry(t *testing.T) {
 	writeFile(t, dir, "pyproject.toml", "[tool.poetry]\nname = \"myapp\"\n\n[tool.poetry.dependencies]\nfastapi = \"^0.100\"\n")
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res.Metadata["manager"] != "poetry" {
 		t.Errorf("expected manager=poetry, got %s", res.Metadata["manager"])
 	}
@@ -71,7 +70,7 @@ func TestDetect_DjangoSuggestsTemplate(t *testing.T) {
 	writeFile(t, dir, "requirements.txt", "django==4.2\n")
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res.SuggestedTemplate != "python-django" {
 		t.Errorf("expected python-django, got %s", res.SuggestedTemplate)
 	}
@@ -82,7 +81,7 @@ func TestDetect_PlainPyFile(t *testing.T) {
 	writeFile(t, dir, "main.py", "print('hello')\n")
 
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), dir)
+	res, err := p.Detect(t.Context(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +99,7 @@ func TestDetect_FastAPIEntrypoint(t *testing.T) {
 	writeFile(t, dir, "app/main.py", "from fastapi import FastAPI\napp = FastAPI()\n")
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res.Metadata["entrypoint"] != "app.main:app" {
 		t.Errorf("expected app.main:app, got %s", res.Metadata["entrypoint"])
 	}
@@ -112,8 +111,8 @@ func TestGenerateConfig_FastAPI(t *testing.T) {
 	writeFile(t, dir, "main.py", "from fastapi import FastAPI\napp = FastAPI()\n")
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, err := p.GenerateConfig(context.Background(), dir, det, "python-fastapi")
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, err := p.GenerateConfig(t.Context(), dir, det, "python-fastapi")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,9 +129,9 @@ func TestPlan(t *testing.T) {
 	writeFile(t, dir, "requirements.txt", "fastapi\n")
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, _ := p.GenerateConfig(context.Background(), dir, det, "python-fastapi")
-	plan, err := p.Plan(context.Background(), dir, cfg)
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, _ := p.GenerateConfig(t.Context(), dir, det, "python-fastapi")
+	plan, err := p.Plan(t.Context(), dir, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -168,7 +168,7 @@ func (p *Pack) GenerateConfig(_ context.Context, _ string, detected *types.Detec
 		cfg.Build.Command = fmt.Sprintf("dotnet restore %s.sln", name)
 
 		if webs, ok := meta["web_projects"]; ok {
-			for _, proj := range strings.Split(webs, ",") {
+			for proj := range strings.SplitSeq(webs, ",") {
 				projName := filepath.Base(proj)
 				cfg.Artifacts = append(cfg.Artifacts, types.Artifact{
 					Name:    strings.ToLower(projName),
@@ -179,7 +179,7 @@ func (p *Pack) GenerateConfig(_ context.Context, _ string, detected *types.Detec
 			}
 		}
 		if workers, ok := meta["worker_projects"]; ok {
-			for _, proj := range strings.Split(workers, ",") {
+			for proj := range strings.SplitSeq(workers, ",") {
 				projName := filepath.Base(proj)
 				cfg.Artifacts = append(cfg.Artifacts, types.Artifact{
 					Name:    strings.ToLower(projName),

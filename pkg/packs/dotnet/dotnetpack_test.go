@@ -1,7 +1,6 @@
 package dotnetpack
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,7 +19,7 @@ func writeFile(t *testing.T, dir, name, content string) {
 
 func TestDetect_NoDotnet(t *testing.T) {
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), t.TempDir())
+	res, _ := p.Detect(t.Context(), t.TempDir())
 	if res != nil {
 		t.Fatal("expected nil for non-.NET project")
 	}
@@ -39,7 +38,7 @@ app.MapGet("/", () => "Hello");
 app.Run();`)
 
 	p := &Pack{}
-	res, err := p.Detect(context.Background(), dir)
+	res, err := p.Detect(t.Context(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +70,7 @@ func TestDetect_SolutionMonorepo(t *testing.T) {
 </Project>`)
 
 	p := &Pack{}
-	res, _ := p.Detect(context.Background(), dir)
+	res, _ := p.Detect(t.Context(), dir)
 	if res == nil {
 		t.Fatal("expected detection")
 	}
@@ -103,8 +102,8 @@ func TestGenerateConfig_Solution(t *testing.T) {
 </Project>`)
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, err := p.GenerateConfig(context.Background(), dir, det, "dotnet-solution")
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, err := p.GenerateConfig(t.Context(), dir, det, "dotnet-solution")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,9 +137,9 @@ func TestPlan_Monorepo(t *testing.T) {
 </Project>`)
 
 	p := &Pack{}
-	det, _ := p.Detect(context.Background(), dir)
-	cfg, _ := p.GenerateConfig(context.Background(), dir, det, "dotnet-solution")
-	plan, err := p.Plan(context.Background(), dir, cfg)
+	det, _ := p.Detect(t.Context(), dir)
+	cfg, _ := p.GenerateConfig(t.Context(), dir, det, "dotnet-solution")
+	plan, err := p.Plan(t.Context(), dir, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

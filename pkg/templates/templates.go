@@ -130,7 +130,7 @@ func parseTemplate(raw string) (*Template, error) {
 			case strings.HasPrefix(content, "Description:"):
 				t.Description = strings.TrimSpace(strings.TrimPrefix(content, "Description:"))
 			case strings.HasPrefix(content, "Tags:"):
-				for _, tag := range strings.Split(strings.TrimPrefix(content, "Tags:"), ",") {
+				for tag := range strings.SplitSeq(strings.TrimPrefix(content, "Tags:"), ",") {
 					tag = strings.TrimSpace(tag)
 					if tag != "" {
 						t.Tags = append(t.Tags, tag)
