@@ -1,0 +1,54 @@
+version: "3"
+
+vars:
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  LDFLAGS: -ldflags "-s -w -X main.version={{.VERSION}}"
+
+tasks:
+  build:
+    cmds:
+      - go build {{.LDFLAGS}} -o bin/nimbopacks ./cmd/nimbopacks
+
+  install:
+    cmds:
+      - go install {{.LDFLAGS}} ./cmd/nimbopacks
+
+  test:
+    cmds:
+      - go test ./...
+
+  test-verbose:
+    cmds:
+      - go test -v ./...
+
+  test-cover:
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+
+  fmt:
+    desc: gofumpt all code
+    cmds:
+      - gofumpt -w -l .
+
+  lint:
+    desc: Lint the code with golangci-lint
+    cmds:
+      - golangci-lint run --tests --timeout 10m --fix --config ./.golangci.yaml ./...
+
+  clean:
+    cmds:
+      - rm -rf bin/ coverage.out coverage.html
+
+  hooks:
+    desc: Install git hooks (commit-msg conventional commits validator)
+    cmds:
+      - cp scripts/commit-msg .git/hooks/commit-msg
+      - chmod +x .git/hooks/commit-msg
+      - echo "Git hooks installed."
+
+  detect:
+    desc: Quick detect on current directory
+    cmds:
+      - go run ./cmd/nimbopacks detect .

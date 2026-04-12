@@ -1,0 +1,40 @@
+# Template: go
+# Pack: golang
+# Description: Go REST API (gin, echo, chi, or stdlib)
+# Tags: web, api, rest
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: golang
+  template: go
+  env:
+    CGO_ENABLED: "0"
+    GOFLAGS: "-trimpath"
+
+image:
+  entrypoint: /usr/bin/{{ .ProjectName }}
+  packages:
+    - ca-certificates-bundle
+  env:
+    # Add your runtime env vars here
+    # APP_ENV: production
+  run_as: 65532
+  ports:
+    - "8080"
+
+# For monorepos with multiple binaries, uncomment:
+# artifacts:
+#   - name: server
+#     source: ./cmd/server
+#     dest: /usr/bin/server
+#   - name: worker
+#     source: ./cmd/worker
+#     dest: /usr/bin/worker
+
+update:
+  auto_check: true

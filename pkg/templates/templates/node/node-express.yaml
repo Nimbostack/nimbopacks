@@ -1,0 +1,30 @@
+# Template: node-express
+# Pack: node
+# Description: Node.js Express API
+# Tags: web, api, rest
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: node
+  template: node-express
+  command: "npm ci"
+
+image:
+  entrypoint: node
+  cmd: ["dist/index.js"]
+  packages:
+    - nodejs-20
+    - ca-certificates-bundle
+  env:
+    NODE_ENV: production
+  run_as: 65532
+  ports:
+    - "3000"
+
+update:
+  auto_check: true

@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  goreleaser:
+    name: GoReleaser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - uses: anchore/sbom-action/download-syft@v0
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  oci-image:
+    name: OCI Image
+    needs: goreleaser
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Generate an ephemeral signing key for this build only.
+      # The key is never stored — the final image is verified via keyless cosign.
+      - name: Setup melange
+        uses: chainguard-dev/actions/setup-melange@main
+
+      - name: Generate ephemeral signing key
+        run: melange keygen melange.rsa
+
+      # Build the nimbopacks APK for both architectures.
+      # package-version-tag strips the 'v' prefix (v0.1.0 → 0.1.0).
+      - name: Build APK with melange
+        uses: chainguard-dev/actions/melange-build-pkg@main
+        with:
+          config: melange.yaml
+          signing-key-path: ${{ github.workspace }}/melange.rsa
+          repository-path: ${{ github.workspace }}/packages
+          archs: x86_64,aarch64
+          source-dir: ${{ github.workspace }}
+          package-version-tag: ${{ github.ref_name }}
+
+      # Assemble the OCI image with apko, push to GHCR, and sign keylessly.
+      # Runs inside wolfi-act so apko/cosign/crane are available without
+      # installing them on the runner.
+      - name: Build, push, and sign OCI image
+        uses: wolfi-dev/wolfi-act@main
+        env:
+          IMAGE_TAG: ${{ github.ref_name }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pass OIDC vars so cosign keyless signing works inside the container.
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+        with:
+          packages: apko,cosign,crane
+          command: |
+            set -ex
+
+            echo "${GITHUB_TOKEN}" | apko login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+            # Build and push multi-arch image + SBOM.
+            # --repository-append adds the locally built nimbopacks APK.
+            # --keyring-append trusts the ephemeral key used to sign it.
+            apko publish apko.yaml \
+              "ghcr.io/Nimbostack/nimbopacks:${IMAGE_TAG}" \
+              "ghcr.io/Nimbostack/nimbopacks:latest" \
+              --keyring-append melange.rsa.pub \
+              --repository-append packages \
+              --arch x86_64,aarch64 \
+              --sbom-path sbom
+
+            # Sign both tags against the resolved image digest (keyless).
+            DIGEST=$(crane digest "ghcr.io/Nimbostack/nimbopacks:${IMAGE_TAG}")
+            cosign sign --yes "ghcr.io/Nimbostack/nimbopacks:${IMAGE_TAG}@${DIGEST}"
+            cosign sign --yes "ghcr.io/Nimbostack/nimbopacks:latest@${DIGEST}"

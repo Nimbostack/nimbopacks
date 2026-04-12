@@ -1,0 +1,33 @@
+# Template: dotnet-webapi
+# Pack: dotnet
+# Description: .NET Web API (single project)
+# Tags: web, api, rest, aspnet
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: dotnet
+  template: dotnet-webapi
+  command: "dotnet publish -c Release -o /home/build/output/app --no-self-contained"
+
+image:
+  entrypoint: dotnet
+  cmd: ["/app/{{ .ProjectName }}.dll"]
+  packages:
+    - dotnet-8-runtime
+    - aspnet-8-runtime
+    - ca-certificates-bundle
+    - icu-libs
+  env:
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "false"
+    ASPNETCORE_URLS: "http://+:8080"
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true

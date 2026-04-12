@@ -1,0 +1,31 @@
+# Template: dotnet-minimal-api
+# Pack: dotnet
+# Description: .NET Minimal API (single file, lightweight)
+# Tags: web, api, minimal
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: dotnet
+  template: dotnet-minimal-api
+  # Self-contained = no runtime needed, but larger image.
+  # Remove --self-contained and add runtime packages for smaller image.
+  command: "dotnet publish -c Release -o /home/build/output/app --self-contained -r linux-x64 /p:PublishTrimmed=true"
+
+image:
+  entrypoint: /app/{{ .ProjectName }}
+  packages:
+    - ca-certificates-bundle
+    - icu-libs
+  env:
+    ASPNETCORE_URLS: "http://+:8080"
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true

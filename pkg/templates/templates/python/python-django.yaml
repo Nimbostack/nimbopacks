@@ -1,0 +1,32 @@
+# Template: python-django
+# Pack: python
+# Description: Python Django with gunicorn
+# Tags: web, django
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: python
+  template: python-django
+  command: "pip install --no-cache-dir -r requirements.txt"
+
+image:
+  entrypoint: python3
+  cmd: ["-m", "gunicorn", "config.wsgi", "--bind=0.0.0.0:8000", "--workers=4"]
+  packages:
+    - python-3.12
+    - py3-gunicorn
+    - ca-certificates-bundle
+  env:
+    PYTHONDONTWRITEBYTECODE: "1"
+    DJANGO_SETTINGS_MODULE: config.settings.production
+  run_as: 65532
+  ports:
+    - "8000"
+
+update:
+  auto_check: true

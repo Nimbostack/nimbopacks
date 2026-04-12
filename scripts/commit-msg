@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Validates commit messages against the conventional commits format.
+# Install via: task hooks
+
+commit_regex='^(feat|chore|docs|fix|refactor|ci)(\(.+\))?: .+'
+msg=$(head -1 "$1")
+
+if ! echo "$msg" | grep -qP "$commit_regex"; then
+  echo ""
+  echo "ERROR: commit message does not follow the conventional commits format."
+  echo ""
+  echo "  Expected: <type>[optional scope]: <description>"
+  echo "  Allowed types: feat, chore, docs, fix, refactor, ci"
+  echo ""
+  echo "  Examples:"
+  echo "    feat: add golang pack"
+  echo "    fix(toolchain): handle missing melange binary"
+  echo "    docs: update contributing guide"
+  echo ""
+  echo "  Got: $msg"
+  echo ""
+  exit 1
+fi

@@ -1,0 +1,43 @@
+# Template: web-spa
+# Pack: web
+# Description: Single-page app (React, Vue, Angular, Svelte) served by nginx
+# Tags: web, spa, react, vue, angular, nginx
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: web
+  template: web-spa
+  command: "npm ci && npm run build"
+  dependencies:
+    - nodejs-20
+    - npm
+    - build-base
+  env:
+    OUTPUT_DIR: dist  # Vite/Vue default. Change to "build" for CRA, "out" for Next.
+
+image:
+  entrypoint: /usr/sbin/nginx
+  cmd: ["-c", "/etc/nginx/nginx.conf", "-g", "daemon off;"]
+  packages:
+    - nginx
+    - ca-certificates-bundle
+  run_as: 65532
+  ports:
+    - "8080"
+
+# The default nginx.conf includes:
+#   - SPA fallback (try_files → /index.html)
+#   - Gzip compression
+#   - Aggressive caching for static assets (1 year, immutable)
+#   - Security headers (X-Frame-Options, X-Content-Type-Options, etc.)
+#   - /healthz endpoint
+#
+# To customize, place your own nginx.conf in the project root.
+
+update:
+  auto_check: true

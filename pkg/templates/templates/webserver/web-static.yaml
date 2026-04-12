@@ -1,0 +1,38 @@
+# Template: web-static
+# Pack: web
+# Description: Static HTML site served by nginx
+# Tags: web, static, nginx, html
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: web
+  template: web-static
+  # No build step — static files served directly.
+  # If you need a build step, add:
+  # command: "npm ci && npm run build"
+  # dependencies: [nodejs-20, npm, build-base]
+  env:
+    OUTPUT_DIR: "."  # Directory containing index.html
+
+image:
+  entrypoint: /usr/sbin/nginx
+  cmd: ["-c", "/etc/nginx/nginx.conf", "-g", "daemon off;"]
+  packages:
+    - nginx
+    - ca-certificates-bundle
+  run_as: 65532
+  ports:
+    - "8080"
+
+# To use a custom nginx.conf, place it in your project root
+# or set NGINX_CONF_PATH in build.env:
+#   env:
+#     NGINX_CONF_PATH: config/nginx.conf
+
+update:
+  auto_check: true

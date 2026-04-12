@@ -1,0 +1,31 @@
+# Template: go-grpc
+# Pack: go
+# Description: Go gRPC service (google.golang.org/grpc or connectrpc.com/connect)
+# Tags: grpc, api, rpc
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: golang
+  template: go-grpc
+  env:
+    CGO_ENABLED: "0"
+    GOFLAGS: "-trimpath"
+
+image:
+  entrypoint: /usr/bin/{{ .ProjectName }}
+  packages:
+    - ca-certificates-bundle
+  env:
+    # Add your runtime env vars here
+    # GRPC_GO_LOG_VERBOSITY_LEVEL: "99"
+  run_as: 65532
+  ports:
+    - "50051"
+
+update:
+  auto_check: true

@@ -1,0 +1,28 @@
+contents:
+  repositories:
+    - https://packages.wolfi.dev/os
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  packages:
+    - nimbopacks
+    - ca-certificates-bundle
+    - melange~0.48.2-r1
+    - apko~1.2.2-r1
+    - bash~5.3-r12
+    - grype~0.111.0-r2
+
+accounts:
+  groups:
+    - groupname: nonroot
+      gid: 65532
+  users:
+    - username: nonroot
+      uid: 65532
+  run-as: 65532
+
+entrypoint:
+  command: /usr/bin/nimbopacks
+
+layering:
+  strategy: origin
+  budget: 10

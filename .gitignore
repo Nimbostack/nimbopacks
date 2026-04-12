@@ -1,0 +1,44 @@
+# Build output
+bin/
+dist/
+
+# Test coverage
+coverage.out
+coverage.html
+
+# Go test binaries
+*.test
+
+# Build artifacts from melange/apko
+*.apk
+*.tar
+*.tar.gz
+*.spdx.json
+*.cdx.json
+packages/
+sbom/
+
+# Ephemeral melange signing keys (generated per-build, never committed)
+melange.rsa
+melange.rsa.pub
+
+# Editor: JetBrains
+.idea/
+
+# Editor: VS Code
+.vscode/
+
+# Editor: Vim/Neovim
+*.swp
+*.swo
+*~
+
+# Editor: Emacs
+\#*\#
+.#*
+
+# OS: macOS
+.DS_Store
+
+# OS: Windows
+Thumbs.db

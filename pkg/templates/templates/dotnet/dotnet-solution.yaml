@@ -1,0 +1,54 @@
+# Template: dotnet-solution
+# Pack: dotnet
+# Description: .NET Solution monorepo (multiple projects, pick which to publish)
+# Tags: monorepo, aspnet, solution
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: dotnet
+  template: dotnet-solution
+  # Build the entire solution. Each artifact publishes one project.
+  command: "dotnet restore {{ .ProjectName }}.sln"
+  dependencies:
+    - dotnet-8-sdk
+    - build-base
+
+image:
+  entrypoint: dotnet
+  cmd: ["/app/api/{{ .ProjectName }}.Api.dll"]
+  packages:
+    - dotnet-8-runtime
+    - aspnet-8-runtime
+    - ca-certificates-bundle
+    - icu-libs
+  env:
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "false"
+    ASPNETCORE_URLS: "http://+:8080"
+  run_as: 65532
+  ports:
+    - "8080"
+
+# Each artifact maps to one project in the solution.
+# nimbopacks builds each, then assembles them into the image.
+artifacts:
+  - name: api
+    source: src/{{ .ProjectName }}.Api
+    command: "dotnet publish src/{{ .ProjectName }}.Api -c Release -o /home/build/output/app/api --no-self-contained"
+    dest: /app/api
+  - name: worker
+    source: src/{{ .ProjectName }}.Worker
+    command: "dotnet publish src/{{ .ProjectName }}.Worker -c Release -o /home/build/output/app/worker --no-self-contained"
+    dest: /app/worker
+  # Add more projects as needed:
+  # - name: migrator
+  #   source: src/{{ .ProjectName }}.Migrations
+  #   command: "dotnet publish src/{{ .ProjectName }}.Migrations -c Release -o /home/build/output/app/migrator --no-self-contained"
+  #   dest: /app/migrator
+
+update:
+  auto_check: true

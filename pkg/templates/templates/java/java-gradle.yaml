@@ -1,0 +1,34 @@
+# Template: java-gradle
+# Pack: java
+# Description: Java Gradle application
+# Tags: java, gradle
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: java
+  template: java-gradle
+  command: "./gradlew build -x test"
+  dependencies:
+    - openjdk-21
+    - build-base
+
+image:
+  entrypoint: java
+  cmd: ["-jar", "/app/app.jar"]
+  packages:
+    - openjdk-21-jre
+    - ca-certificates-bundle
+  env:
+    JAVA_HOME: /usr/lib/jvm/java-21-openjdk
+    JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true

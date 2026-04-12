@@ -1,0 +1,33 @@
+# Template: web-hugo
+# Pack: web
+# Description: Hugo static site served by nginx
+# Tags: web, hugo, ssg, nginx
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: web
+  template: web-hugo
+  command: "hugo --minify"
+  dependencies:
+    - hugo
+    - build-base
+  env:
+    OUTPUT_DIR: public
+
+image:
+  entrypoint: /usr/sbin/nginx
+  cmd: ["-c", "/etc/nginx/nginx.conf", "-g", "daemon off;"]
+  packages:
+    - nginx
+    - ca-certificates-bundle
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true

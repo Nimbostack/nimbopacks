@@ -1,0 +1,32 @@
+# Template: python-fastapi
+# Pack: python
+# Description: Python FastAPI with uvicorn
+# Tags: web, api, rest, async
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: python
+  template: python-fastapi
+  command: "pip install --no-cache-dir -r requirements.txt"
+
+image:
+  entrypoint: python3
+  cmd: ["-m", "uvicorn", "{{ .Entrypoint }}", "--host=0.0.0.0", "--port=8000"]
+  packages:
+    - python-3.12
+    - py3-uvicorn
+    - ca-certificates-bundle
+  env:
+    PYTHONDONTWRITEBYTECODE: "1"
+    PYTHONUNBUFFERED: "1"
+  run_as: 65532
+  ports:
+    - "8000"
+
+update:
+  auto_check: true

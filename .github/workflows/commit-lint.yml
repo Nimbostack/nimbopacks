@@ -1,0 +1,35 @@
+name: Lint Commits
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  lint-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          invalid=$(git log --format="%s" "origin/${BASE_REF}..HEAD" \
+            | grep -v '^Merge ' \
+            | grep -v '^$' \
+            | grep -vP '^(feat|chore|docs|fix|refactor|ci)(\(.+\))?: .+' || true)
+          if [ -n "$invalid" ]; then
+            echo "The commit messages do not follow the conventional commits format:"
+            echo ""
+            echo "$invalid"
+            echo ""
+            echo "Expected format: <type>[optional scope]: <description>"
+            echo "Allowed types: feat, chore, docs, fix, refactor, ci"
+            echo "Examples:"
+            echo "  feat: add golang pack"
+            echo "  fix(toolchain): handle missing melange binary"
+            echo "  docs: update contributing guide"
+            exit 1
+          fi

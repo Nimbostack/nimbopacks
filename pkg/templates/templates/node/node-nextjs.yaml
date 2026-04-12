@@ -1,0 +1,31 @@
+# Template: node-nextjs
+# Pack: node
+# Description: Next.js application with standalone output
+# Tags: web, react, ssr
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: node
+  template: node-nextjs
+  command: "npm ci && npm run build"
+
+image:
+  entrypoint: node
+  cmd: ["server.js"]
+  packages:
+    - nodejs-20
+    - ca-certificates-bundle
+  env:
+    NODE_ENV: production
+    NEXT_TELEMETRY_DISABLED: "1"
+  run_as: 65532
+  ports:
+    - "3000"
+
+update:
+  auto_check: true
