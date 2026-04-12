@@ -28,7 +28,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"path/filepath"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -78,7 +78,7 @@ func walkDir(root string) error {
 	}
 
 	for _, entry := range entries {
-		path := filepath.Join(root, entry.Name())
+		path := path.Join(root, entry.Name())
 		if entry.IsDir() {
 			if err := walkDir(path); err != nil {
 				return err

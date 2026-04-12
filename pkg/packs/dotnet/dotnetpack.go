@@ -52,15 +52,16 @@ func (p *Pack) Detect(_ context.Context, srcDir string) (*types.DetectResult, er
 			continue
 		}
 		dir := filepath.Dir(f)
+		slashDir := filepath.ToSlash(dir)
 		switch {
 		case strings.Contains(content, "Microsoft.NET.Sdk.Web"):
-			webProjects = append(webProjects, dir)
+			webProjects = append(webProjects, slashDir)
 			meta["has_web"] = "true"
 		case strings.Contains(content, "Microsoft.NET.Sdk.Worker"):
-			workerProjects = append(workerProjects, dir)
+			workerProjects = append(workerProjects, slashDir)
 			meta["has_worker"] = "true"
 		default:
-			libProjects = append(libProjects, dir)
+			libProjects = append(libProjects, slashDir)
 		}
 	}
 

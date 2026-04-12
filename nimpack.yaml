@@ -23,10 +23,9 @@ image:
     # Add your runtime env vars here
     # APP_ENV: production
   run_as: 65532
+  layering:
+    strategy: origin
+    budget: 10
 
 update:
   auto_check: true
-
-layering:
-  strategy: origin
-  budget: 10
