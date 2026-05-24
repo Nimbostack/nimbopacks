@@ -51,7 +51,7 @@ jobs:
       # Generate an ephemeral signing key for this build only.
       # The key is never stored — the final image is verified via keyless cosign.
       - name: Setup melange
-        uses: chainguard-dev/actions/setup-melange@de68b87302e6266db5fb5220246f8aa46fe94b67 # main
+        uses: chainguard-dev/actions/setup-melange@c69a264ec2a5934c3186c618f368fc1c86f16cff # main
 
       - name: Generate ephemeral signing key
         run: melange keygen melange.rsa
@@ -59,7 +59,7 @@ jobs:
       # Build the nimbopacks APK for both architectures.
       # package-version-tag strips the 'v' prefix (v0.1.0 → 0.1.0).
       - name: Build APK with melange
-        uses: chainguard-dev/actions/melange-build-pkg@de68b87302e6266db5fb5220246f8aa46fe94b67 # main
+        uses: chainguard-dev/actions/melange-build-pkg@c69a264ec2a5934c3186c618f368fc1c86f16cff # main
         with:
           config: melange.yaml
           signing-key-path: ${{ github.workspace }}/melange.rsa
