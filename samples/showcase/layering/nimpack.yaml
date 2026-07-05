@@ -1,0 +1,55 @@
+schema_version: "1"
+
+project:
+  name: layering-sample
+  version: 0.0.1
+
+build:
+  pack: golang
+  template: go
+  env:
+    CGO_ENABLED: "0"
+    GOFLAGS: "-trimpath"
+
+image:
+  entrypoint: /usr/bin/layering-sample
+  # A deliberately diverse package list. Each of these has a different
+  # upstream origin, so apko's `strategy: origin` will spread them across
+  # several layers instead of cramming them into one. Pulls from
+  # https://packages.wolfi.dev/os.
+  packages:
+    - ca-certificates-bundle
+    - openssl
+    - glibc-locale-en
+    - tzdata
+    - curl
+    - jq
+    - bash
+    - coreutils
+  env:
+    PORT: "8080"
+  run_as: 65532
+  ports:
+    - "8080"
+
+  # apko-native multi-layer image assembly.
+  #
+  # - strategy: origin — group packages by upstream build origin so that
+  #   packages which change together share a layer.
+  # - budget: 8        — give the top 8 origin-groups (by installed size)
+  #   their own layers. Remaining groups overflow into a single shared
+  #   layer, and a final "top" layer holds OS metadata. Total layers in
+  #   the resulting image: budget + 1 + (overflow, if any).
+  #
+  # Tune budget for your use case:
+  # - Application images that won't be used as bases: 8-16 is a good range.
+  # - Base images that consumers will build on top of: keep budget low (2-4)
+  #   so consumers have headroom — runtimes cap at 127 layers total.
+  #
+  # Reference: https://github.com/chainguard-dev/apko/blob/main/docs/layering.md
+  layering:
+    strategy: origin
+    budget: 8
+
+update:
+  auto_check: true
