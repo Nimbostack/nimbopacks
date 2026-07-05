@@ -22,15 +22,15 @@ docker run --rm -p 8080:8080 go-rest-sample
 
 ## Verifying samples
 
-[`verify.sh`](verify.sh) builds each sample, runs the resulting image, and
+[`verify-builds.sh`](verify-builds.sh) builds each sample, runs the resulting image, and
 probes it (HTTP, gRPC h2c, or a worker log pattern) — proving the samples *run*,
 not just that they build. The [Samples CI workflow](../.github/workflows/samples.yml)
 runs it per-sample on relevant changes and weekly.
 
 ```bash
 task build                       # build the nimbopacks binary first
-./samples/verify.sh              # verify every sample
-./samples/verify.sh go/rest node/express   # or just specific ones
+./samples/verify-builds.sh              # verify every sample
+./samples/verify-builds.sh go/rest node/express   # or just specific ones
 ```
 
 ## Index

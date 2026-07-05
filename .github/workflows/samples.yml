@@ -70,4 +70,4 @@ jobs:
       - name: Verify sample
         env:
           SAMPLE: ${{ matrix.sample }}
-        run: ./samples/verify.sh "$SAMPLE"
+        run: ./samples/verify-builds.sh "$SAMPLE"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# verify.sh — build every sample, run the resulting image, and probe it.
+# verify-builds.sh — build every sample, run the resulting image, and probe it.
 #
 # This proves the samples actually *run*, not just that `nimbopacks build`
 # succeeds. For each sample it: builds the image, loads the OCI tarball into
@@ -8,8 +8,8 @@
 # or a log pattern for non-HTTP workers).
 #
 # Usage:
-#   samples/verify.sh                 # verify all samples
-#   samples/verify.sh go/rest node/express   # verify only these
+#   samples/verify-builds.sh                 # verify all samples
+#   samples/verify-builds.sh go/rest node/express   # verify only these
 #
 # Env:
 #   NIMBOPACKS_BIN   path to the nimbopacks binary (default: ./bin/nimbopacks,
