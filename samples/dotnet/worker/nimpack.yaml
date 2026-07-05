@@ -1,0 +1,27 @@
+schema_version: "1"
+
+project:
+  name: dotnet-worker-sample
+  version: 0.0.1
+
+build:
+  pack: dotnet
+  template: dotnet-worker
+  command: "dotnet publish -c Release -o /home/build/output/app --no-self-contained"
+  dependencies:
+    - dotnet-8-sdk
+    - build-base
+
+image:
+  entrypoint: dotnet
+  cmd: ["/app/dotnet-worker-sample.dll"]
+  packages:
+    - dotnet-8-runtime
+    - ca-certificates-bundle
+    - icu-libs
+  env:
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "false"
+  run_as: 65532
+
+update:
+  auto_check: true

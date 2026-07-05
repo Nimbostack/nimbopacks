@@ -1,0 +1,24 @@
+schema_version: "1"
+
+project:
+  name: web-static-sample
+  version: 0.0.1
+
+build:
+  pack: web
+  template: web-static
+  env:
+    OUTPUT_DIR: "."
+
+image:
+  entrypoint: /usr/sbin/nginx
+  cmd: ["-e", "/dev/stderr", "-c", "/etc/nginx/nimbopacks.conf"]
+  packages:
+    - nginx
+    - ca-certificates-bundle
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true

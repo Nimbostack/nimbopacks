@@ -121,6 +121,76 @@ dependencies {
 	}
 }
 
+func TestDetect_Quarkus(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pom.xml", `<project>
+  <dependencies>
+    <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-rest</artifactId></dependency>
+  </dependencies>
+</project>`)
+
+	p := &Pack{}
+	res, err := p.Detect(t.Context(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res == nil {
+		t.Fatal("expected detection")
+	}
+	if res.SuggestedTemplate != "java-quarkus" {
+		t.Errorf("expected java-quarkus, got %s", res.SuggestedTemplate)
+	}
+	if res.Metadata["framework"] != "quarkus" {
+		t.Errorf("expected quarkus framework, got %s", res.Metadata["framework"])
+	}
+}
+
+func TestDetect_Micronaut(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pom.xml", `<project>
+  <parent><groupId>io.micronaut.platform</groupId><artifactId>micronaut-parent</artifactId></parent>
+</project>`)
+
+	p := &Pack{}
+	res, err := p.Detect(t.Context(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res == nil {
+		t.Fatal("expected detection")
+	}
+	if res.SuggestedTemplate != "java-micronaut" {
+		t.Errorf("expected java-micronaut, got %s", res.SuggestedTemplate)
+	}
+	if res.Metadata["framework"] != "micronaut" {
+		t.Errorf("expected micronaut framework, got %s", res.Metadata["framework"])
+	}
+}
+
+func TestDetect_SpringWebFlux(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "pom.xml", `<project>
+  <dependencies>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webflux</artifactId></dependency>
+  </dependencies>
+</project>`)
+
+	p := &Pack{}
+	res, err := p.Detect(t.Context(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res == nil {
+		t.Fatal("expected detection")
+	}
+	if res.SuggestedTemplate != "java-webflux" {
+		t.Errorf("expected java-webflux, got %s", res.SuggestedTemplate)
+	}
+	if res.Metadata["framework"] != "spring-boot-webflux" {
+		t.Errorf("expected spring-boot-webflux framework, got %s", res.Metadata["framework"])
+	}
+}
+
 // --- GenerateConfig ---
 
 func TestGenerateConfig_Maven(t *testing.T) {
@@ -195,10 +265,10 @@ func TestPlan_Maven(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Melange.Pipeline) != 2 {
-		t.Fatalf("expected 2 pipeline steps, got %d", len(plan.Melange.Pipeline))
+	if len(plan.Melange.Pipeline) != 3 {
+		t.Fatalf("expected 3 pipeline steps, got %d", len(plan.Melange.Pipeline))
 	}
-	if plan.Melange.Pipeline[0].Runs != "mvn package -DskipTests" {
+	if !strings.Contains(plan.Melange.Pipeline[0].Runs, "mvn package -DskipTests") {
 		t.Errorf("unexpected build step: %s", plan.Melange.Pipeline[0].Runs)
 	}
 	if !strings.Contains(plan.Melange.Pipeline[1].Runs, "target/") {
@@ -220,10 +290,10 @@ func TestPlan_Gradle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Melange.Pipeline) != 2 {
-		t.Fatalf("expected 2 pipeline steps, got %d", len(plan.Melange.Pipeline))
+	if len(plan.Melange.Pipeline) != 3 {
+		t.Fatalf("expected 3 pipeline steps, got %d", len(plan.Melange.Pipeline))
 	}
-	if plan.Melange.Pipeline[0].Runs != "./gradlew build -x test" {
+	if !strings.Contains(plan.Melange.Pipeline[0].Runs, "./gradlew build -x test") {
 		t.Errorf("unexpected build step: %s", plan.Melange.Pipeline[0].Runs)
 	}
 	if !strings.Contains(plan.Melange.Pipeline[1].Runs, "build/libs/") {

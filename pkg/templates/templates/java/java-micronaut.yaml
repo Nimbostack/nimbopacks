@@ -1,0 +1,37 @@
+# Template: java-micronaut
+# Pack: java
+# Description: Micronaut 4 application (Maven, shaded jar)
+# Tags: java, maven, micronaut
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: java
+  template: java-micronaut
+  command: "mvn package -DskipTests"
+  dependencies:
+    - openjdk-21
+    - maven
+    - build-base
+  env:
+    JAR_DIR: target
+
+image:
+  entrypoint: /usr/lib/jvm/java-21-openjdk/bin/java
+  cmd: ["-jar", "/app/app.jar"]
+  packages:
+    - openjdk-21-jre
+    - ca-certificates-bundle
+  env:
+    JAVA_HOME: /usr/lib/jvm/java-21-openjdk
+    JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true

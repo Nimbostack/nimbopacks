@@ -12,18 +12,24 @@ project:
 build:
   pack: python
   template: python-fastapi
-  command: "pip install --no-cache-dir -r requirements.txt"
+  # Vendor deps into /app (where PYTHONPATH points). `pip` is not on PATH in
+  # Wolfi — use `python3 -m pip`; py3.12-pip matches the python-3.12 runtime.
+  command: "python3 -m pip install --no-cache-dir --target /home/build/output/app -r requirements.txt"
+  dependencies:
+    - python-3.12
+    - py3.12-pip
+    - build-base
 
 image:
   entrypoint: python3
   cmd: ["-m", "uvicorn", "{{ .Entrypoint }}", "--host=0.0.0.0", "--port=8000"]
   packages:
     - python-3.12
-    - py3-uvicorn
     - ca-certificates-bundle
   env:
     PYTHONDONTWRITEBYTECODE: "1"
     PYTHONUNBUFFERED: "1"
+    PYTHONPATH: /app
   run_as: 65532
   ports:
     - "8000"

@@ -1,0 +1,25 @@
+schema_version: "1"
+
+project:
+  name: go-grpc-sample
+  version: 0.0.1
+
+build:
+  pack: golang
+  template: go-grpc
+  env:
+    CGO_ENABLED: "0"
+    GOFLAGS: "-trimpath"
+
+image:
+  entrypoint: /usr/bin/go-grpc-sample
+  packages:
+    - ca-certificates-bundle
+  env:
+    PORT: "50051"
+  run_as: 65532
+  ports:
+    - "50051"
+
+update:
+  auto_check: true

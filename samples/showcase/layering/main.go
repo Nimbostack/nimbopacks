@@ -1,0 +1,29 @@
+// Tiny HTTP server used as a stand-in for a real app while you explore
+// the apko layering workflow. The interesting part of this sample is the
+// nimpack.yaml + the README — not the Go code.
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+)
+
+func main() {
+	addr := ":" + envOr("PORT", "8080")
+
+	http.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintln(w, "layering showcase — see samples/showcase/layering/README.md")
+	})
+
+	log.Printf("listening on %s", addr)
+	log.Fatal(http.ListenAndServe(addr, nil))
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}

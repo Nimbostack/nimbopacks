@@ -1,0 +1,35 @@
+schema_version: "1"
+
+project:
+  name: java-quarkus-sample
+  version: 0.0.1
+
+build:
+  pack: java
+  template: java-quarkus
+  command: "mvn package -DskipTests"
+  dependencies:
+    - openjdk-21
+    - maven
+    - build-base
+  env:
+    JAR_DIR: target
+
+image:
+  entrypoint: /usr/lib/jvm/java-21-openjdk/bin/java
+  # Quarkus uber-jar with output-name=app produces target/app-runner.jar as the
+  # runnable jar; the thin target/app.jar is not self-contained. Both jars get
+  # copied into /app, so cmd points explicitly at the runner jar.
+  cmd: ["-jar", "/app/app-runner.jar"]
+  packages:
+    - openjdk-21-jre
+    - ca-certificates-bundle
+  env:
+    JAVA_HOME: /usr/lib/jvm/java-21-openjdk
+    JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true

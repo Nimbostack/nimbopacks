@@ -1,0 +1,55 @@
+schema_version: "1"
+
+project:
+  name: custom-ca-certs-sample
+  version: 0.0.1
+
+build:
+  pack: golang
+  template: go
+  env:
+    CGO_ENABLED: "0"
+    GOFLAGS: "-trimpath"
+
+image:
+  entrypoint: /usr/bin/custom-ca-certs-sample
+  packages:
+    - ca-certificates-bundle
+  env:
+    PORT: "8080"
+  run_as: 65532
+  ports:
+    - "8080"
+
+# Custom CA certificates.
+#
+# These propagate to every layer of the build — melange's APK fetches,
+# apko's package pulls, the final image's trust store (so the running
+# app trusts the same CAs), and registry pushes from `nimbopacks build`.
+#
+# Use this when you're behind a corporate TLS-intercepting proxy, pulling
+# packages from a private registry that uses a self-signed cert, or your
+# application makes outbound HTTPS calls to internal services.
+tls:
+  # Explicit list of PEM files. Paths are absolute or relative to the
+  # project root. Listed certs are concatenated in order.
+  ca_cert_paths:
+    - certs/example-ca.pem
+
+  # Alternative: point at a directory and load every .pem / .crt inside.
+  # Useful when you mirror the host's /usr/local/share/ca-certificates.
+  # ca_dir_path: certs/
+
+  # Whether custom CAs are added to the final image's trust store so the
+  # running application trusts the same CAs. Default: true. Set to false
+  # if you only need the CAs during build (e.g., to fetch deps) and
+  # don't want them baked into the published image.
+  # inject_into_image: true
+
+  # NEVER set in production. Disables TLS verification entirely — useful
+  # only as a one-off diagnostic when you suspect a CA issue and want to
+  # rule TLS out as the cause.
+  # insecure: false
+
+update:
+  auto_check: true

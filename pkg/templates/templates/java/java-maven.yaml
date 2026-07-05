@@ -19,7 +19,7 @@ build:
     - build-base
 
 image:
-  entrypoint: java
+  entrypoint: /usr/lib/jvm/java-21-openjdk/bin/java
   cmd: ["-jar", "/app/app.jar"]
   packages:
     - openjdk-21-jre

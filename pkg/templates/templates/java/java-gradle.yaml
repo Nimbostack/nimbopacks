@@ -13,12 +13,15 @@ build:
   pack: java
   template: java-gradle
   command: "./gradlew build -x test"
+  env:
+    # Gradle writes the built jar to build/libs (Maven uses target/).
+    JAR_DIR: build/libs
   dependencies:
     - openjdk-21
     - build-base
 
 image:
-  entrypoint: java
+  entrypoint: /usr/lib/jvm/java-21-openjdk/bin/java
   cmd: ["-jar", "/app/app.jar"]
   packages:
     - openjdk-21-jre

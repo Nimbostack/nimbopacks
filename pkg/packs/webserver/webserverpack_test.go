@@ -128,6 +128,27 @@ func TestDetect_CustomNginxConf(t *testing.T) {
 	if res.Metadata["has_nginx_conf"] != "true" {
 		t.Error("expected has_nginx_conf=true")
 	}
+	// A root-level nginx.conf must also record its path so GenerateConfig can
+	// wire NGINX_CONF_PATH (previously only subdir locations did).
+	if res.Metadata["nginx_conf_path"] != "nginx.conf" {
+		t.Errorf("expected nginx_conf_path=nginx.conf, got %q", res.Metadata["nginx_conf_path"])
+	}
+}
+
+func TestGenerateConfig_WiresCustomNginxConf(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "index.html", "<html></html>")
+	writeFile(t, dir, "nginx.conf", "worker_processes 1;")
+
+	p := &Pack{}
+	res, _ := p.Detect(t.Context(), dir)
+	cfg, err := p.GenerateConfig(t.Context(), dir, res, res.SuggestedTemplate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Build.Env["NGINX_CONF_PATH"] != "nginx.conf" {
+		t.Errorf("expected NGINX_CONF_PATH=nginx.conf in build env, got %q", cfg.Build.Env["NGINX_CONF_PATH"])
+	}
 }
 
 func TestDetect_NginxConfInSubdir(t *testing.T) {
@@ -157,27 +178,21 @@ func TestPlan_DefaultNginxConf(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Should have steps for: copy files, nginx.conf, mime.types, directories
+	// Should have steps for: copy files, nginx config, directories, install.
 	if len(plan.Melange.Pipeline) < 4 {
 		t.Errorf("expected at least 4 pipeline steps, got %d", len(plan.Melange.Pipeline))
 	}
 
-	// Check that default nginx.conf is embedded.
+	// Check that the default nginx config is embedded. (mime.types is not
+	// packaged — the config reuses the one shipped by the nginx package.)
 	foundNginxConf := false
-	foundMimeTypes := false
 	for _, step := range plan.Melange.Pipeline {
 		if strings.Contains(step.Runs, "worker_processes auto") {
 			foundNginxConf = true
 		}
-		if strings.Contains(step.Runs, "text/html") {
-			foundMimeTypes = true
-		}
 	}
 	if !foundNginxConf {
-		t.Error("expected default nginx.conf in pipeline")
-	}
-	if !foundMimeTypes {
-		t.Error("expected default mime.types in pipeline")
+		t.Error("expected default nginx config in pipeline")
 	}
 }
 

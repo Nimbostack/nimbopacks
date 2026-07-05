@@ -1,0 +1,27 @@
+schema_version: "1"
+
+project:
+  name: web-custom-nginx-sample
+  version: 0.0.1
+
+build:
+  pack: web
+  env:
+    # Serve the static files from public/ ...
+    OUTPUT_DIR: public
+    # ... and use this project's own nginx.conf instead of the generated
+    # default. nimbopacks installs it at /etc/nginx/nimbopacks.conf.
+    NGINX_CONF_PATH: nginx.conf
+
+image:
+  entrypoint: /usr/sbin/nginx
+  cmd: ["-e", "/dev/stderr", "-c", "/etc/nginx/nimbopacks.conf"]
+  packages:
+    - nginx
+    - ca-certificates-bundle
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true

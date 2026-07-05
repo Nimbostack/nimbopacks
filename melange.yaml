@@ -1,6 +1,6 @@
 package:
   name: nimbopacks
-  version: 0.0.1
+  version: 0.1.0
   epoch: 0
   description: Minimal, reproducible OCI container images from source — with atomic CVE patching
   copyright:

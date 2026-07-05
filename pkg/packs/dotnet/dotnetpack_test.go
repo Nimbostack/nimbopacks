@@ -56,6 +56,97 @@ app.Run();`)
 	}
 }
 
+func TestDetect_Grpc(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "MyGrpc.csproj", `<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" Version="2.66.0" />
+  </ItemGroup>
+</Project>`)
+	writeFile(t, dir, "Protos/greet.proto", `syntax = "proto3";
+service Greeter { rpc SayHello (HelloRequest) returns (HelloReply); }`)
+	writeFile(t, dir, "Program.cs", `var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddGrpc();
+var app = builder.Build();
+app.Run();`)
+
+	p := &Pack{}
+	res, err := p.Detect(t.Context(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res == nil {
+		t.Fatal("expected detection")
+	}
+	if res.SuggestedTemplate != "dotnet-grpc" {
+		t.Errorf("expected dotnet-grpc, got %s", res.SuggestedTemplate)
+	}
+	if res.Metadata["has_grpc"] != "true" {
+		t.Error("expected has_grpc metadata")
+	}
+}
+
+func TestDetect_Blazor(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "MyBlazor.csproj", `<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+</Project>`)
+	writeFile(t, dir, "Program.cs", `var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddRazorComponents();
+var app = builder.Build();
+app.Run();`)
+	writeFile(t, dir, "Components/Pages/Home.razor", `@page "/"
+<h1>Hello</h1>`)
+
+	p := &Pack{}
+	res, err := p.Detect(t.Context(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res == nil {
+		t.Fatal("expected detection")
+	}
+	if res.SuggestedTemplate != "dotnet-blazor" {
+		t.Errorf("expected dotnet-blazor, got %s", res.SuggestedTemplate)
+	}
+	if res.Metadata["has_blazor"] != "true" {
+		t.Error("expected has_blazor metadata")
+	}
+}
+
+func TestDetect_Worker(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "MyWorker.csproj", `<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+</Project>`)
+	writeFile(t, dir, "Program.cs", `var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddHostedService<Worker>();
+var host = builder.Build();
+host.Run();`)
+
+	p := &Pack{}
+	res, err := p.Detect(t.Context(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res == nil {
+		t.Fatal("expected detection")
+	}
+	if res.SuggestedTemplate != "dotnet-worker" {
+		t.Errorf("expected dotnet-worker, got %s", res.SuggestedTemplate)
+	}
+	if res.Metadata["has_worker"] != "true" {
+		t.Error("expected has_worker metadata")
+	}
+}
+
 func TestDetect_SolutionMonorepo(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "MyApp.sln", "Microsoft Visual Studio Solution File")
@@ -144,8 +235,8 @@ func TestPlan_Monorepo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Should have restore step + one publish per artifact.
-	expectedSteps := 1 + len(cfg.Artifacts) // restore + N publishes
+	// Should have restore step + one publish per artifact + the install step.
+	expectedSteps := 1 + len(cfg.Artifacts) + 1 // restore + N publishes + install-to-destdir
 	if len(plan.Melange.Pipeline) != expectedSteps {
 		t.Errorf("expected %d pipeline steps, got %d", expectedSteps, len(plan.Melange.Pipeline))
 	}

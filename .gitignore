@@ -18,6 +18,14 @@ coverage.html
 packages/
 sbom/
 
+# Locally-built Go sample binaries (samples build via `nimbopacks build`, not
+# committed — the binary name matches its directory).
+samples/go/rest/rest
+samples/go/grpc/grpc
+samples/showcase/cve-patching/cve-patching
+samples/showcase/layering/layering
+samples/showcase/custom-ca-certs/custom-ca-certs
+
 # Ephemeral melange signing keys (generated per-build, never committed)
 melange.rsa
 melange.rsa.pub
@@ -42,3 +50,4 @@ melange.rsa.pub
 
 # OS: Windows
 Thumbs.db
+.worktrees/

@@ -7,9 +7,9 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/go-1.24-00ADD8.svg)](https://go.dev)
 
-Minimal, reproducible OCI container images from source — with atomic CVE patching.
+Minimal, reproducible OCI container images from source — with built-in SBOMs and CVE scanning.
 
-Nimbopacks builds images using [melange](https://github.com/chainguard-dev/melange) (APK package builder) and [apko](https://github.com/chainguard-dev/apko) (image assembler) from the [Wolfi](https://github.com/wolfi-dev) ecosystem. Every build produces an SBOM. CVE patching is a first-class workflow, not an afterthought.
+Nimbopacks builds images using [melange](https://github.com/chainguard-dev/melange) (APK package builder) and [apko](https://github.com/chainguard-dev/apko) (image assembler) from the [Wolfi](https://github.com/wolfi-dev) ecosystem. Every build emits an SBOM, and CVE scanning is a first-class workflow — patching is just a rebuild against Wolfi's continuously-updated packages.
 
 `nimpack.yaml` is the single source of truth. Detection generates it; builds always read it.
 
@@ -34,11 +34,10 @@ nimbopacks build
 # Push to a registry
 nimbopacks build --tag ghcr.io/myorg/myapp:v1.0.0 --push
 
-# Check for CVEs
+# Scan for CVEs (exit 1 in CI if any meet the threshold)
 nimbopacks update --check
 
-# Patch and rebuild
-nimbopacks update
+# "Patch" = rebuild to pull the latest fixed Wolfi packages
 nimbopacks build
 ```
 
@@ -70,26 +69,50 @@ Templates are opinionated starting configs for specific project types:
 nimbopacks templates
 
   dotnet:
+    dotnet-blazor         .NET Blazor Web App (interactive server rendering)
+    dotnet-grpc           .NET gRPC service (ASP.NET Core, HTTP/2)
     dotnet-minimal-api    .NET Minimal API (single file, lightweight)
     dotnet-solution       .NET Solution monorepo (multiple projects)
     dotnet-webapi         .NET Web API (single project)
+    dotnet-worker         .NET Worker Service (background service, no HTTP port)
   go:
     go                    Go REST API (gin, echo, chi, or stdlib)
     go-grpc               Go gRPC service with protobuf
   java:
     java-gradle           Java Gradle application
     java-maven            Java Maven application
+    java-micronaut        Micronaut 4 application (Maven, shaded jar)
+    java-quarkus          Quarkus 3 application (Maven, uber-jar)
+    java-webflux          Spring Boot WebFlux reactive app (Maven, Netty)
   node:
     node-express          Node.js Express API
+    node-fastify          Node.js Fastify API
+    node-hono             Node.js Hono API
+    node-nestjs           NestJS application compiled with tsc
     node-nextjs           Next.js application with standalone output
   python:
     python-django         Python Django with gunicorn
     python-fastapi        Python FastAPI with uvicorn
-  webserver:
+  web:
     web-hugo              Hugo static site
     web-spa               SPA (React/Vue/Svelte/Angular) with nginx
     web-static            Plain static HTML site with nginx
 ```
+
+## Samples
+
+The [`samples/`](samples/) directory has a **working, buildable app for every
+template** plus showcases of the enterprise capabilities — CVE scanning &
+remediation, apko-native layering, and custom CA trust. Each sample is
+`cd`-and-`nimbopacks build`-able with a README walking through build/run/view.
+
+```bash
+cd samples/go/rest && nimbopacks build
+docker run --rm -p 8080:8080 go-rest-sample
+```
+
+See [samples/README.md](samples/README.md) for the full index across .NET, Go,
+Java, Node.js, Python, and static-web stacks.
 
 ## Pushing Images
 
@@ -131,46 +154,36 @@ artifacts:
     dest: /app/worker
 ```
 
-## CVE Patching
+## CVE Scanning
 
-This is nimbopacks' core differentiator. Check, patch, rebuild — in minutes:
+`nimbopacks update` scans the build's SBOM with [grype](https://github.com/anchore/grype).
+Remediation is a rebuild — Wolfi ships patches continuously, so `nimbopacks build`
+pulls the latest fixed packages.
 
 ```bash
-# Check what needs patching
-nimbopacks update --check
-
-  🔴 openssl                          → 3.2.1-r1
-      CVEs: CVE-2024-0727
-  🟠 ca-certificates-bundle           → 20240226-r0
-      CVEs: CVE-2024-0567
-
-# Apply patches
+# Scan and print findings (non-blocking, always exits 0)
 nimbopacks update
 
-# Rebuild with patches
-nimbopacks build
+  🔴 openssl                  → 3.2.1-r1     CVE-2024-0727
+  🟠 ca-certificates-bundle   → 20240226-r0  CVE-2024-0567
 
-# CI gate (exit 1 if critical/high CVEs exist)
+# CI gate: exit 1 if any finding is at/above the threshold (default: high)
 nimbopacks update --check
-
-# Tune the severity threshold
 nimbopacks update --check --fail-on critical
 
-# SARIF output for GitHub Code Scanning
+# SARIF for GitHub Code Scanning
 nimbopacks update --check --format sarif -o results.sarif
 
 # Scan an existing SBOM without rebuilding
 nimbopacks update --check --sbom ./output/sbom-x86_64.spdx.json
 
-# Suppress known false positives via grype policy
-# Place .grype.yaml in your project root — grype picks it up automatically.
-# Or specify explicitly:
+# Triage false positives with a grype policy (.grype.yaml in the project root is
+# auto-detected; --grype-config points at a non-default location)
 nimbopacks update --check --grype-config path/to/policy.yaml
 ```
 
-**Exit codes:** `0` = clean, `1` = CVEs at/above threshold, `2` = tool/config error.
-
-**Env vars:** `NIMBOPACKS_FAIL_ON`, `NIMBOPACKS_FORMAT`, `NIMBOPACKS_GRYPE_CONFIG`, `NIMBOPACKS_GRYPE_DB_CACHE` (useful for CI caching).
+**Exit codes:** `0` clean · `1` CVEs at/above threshold · `2` tool/config error.
+**Env vars:** `NIMBOPACKS_FAIL_ON`, `NIMBOPACKS_FORMAT`, `NIMBOPACKS_GRYPE_CONFIG`, `NIMBOPACKS_GRYPE_DB_CACHE` (CI caching).
 
 ## Command Reference
 
@@ -195,15 +208,13 @@ nimbopacks update --check --grype-config path/to/policy.yaml
 
 ## Prerequisites
 
-Nimbopacks manages its own toolchain:
-
-```bash
-nimbopacks toolchain install   # auto-downloads melange + apko + grype
-nimbopacks toolchain status    # check what's installed
-nimbopacks toolchain upgrade   # update to latest
-```
-
-Or install manually: [melange](https://github.com/chainguard-dev/melange), [apko](https://github.com/chainguard-dev/apko), [grype](https://github.com/anchore/grype).
+Nimbopacks manages its own toolchain — `nimbopacks toolchain install`
+auto-downloads melange, apko, and grype (see the `toolchain` commands above).
+Builds run melange in a sandbox (bubblewrap, or Docker where bubblewrap is
+unavailable, e.g. WSL2). You can also install the tools manually:
+[melange](https://github.com/chainguard-dev/melange),
+[apko](https://github.com/chainguard-dev/apko),
+[grype](https://github.com/anchore/grype).
 
 ## Using the Container Image
 
@@ -211,24 +222,24 @@ Every release publishes a pre-built OCI image to GitHub Container Registry. The 
 
 ```bash
 # Pull the latest release
-docker pull ghcr.io/Nimbostack/nimbopacks:latest
+docker pull ghcr.io/nimbostack/nimbopacks:latest
 
 # Run a build against your project directory
 docker run --rm \
   -v $(pwd):/src \
   -w /src \
-  ghcr.io/Nimbostack/nimbopacks:latest \
+  ghcr.io/nimbostack/nimbopacks:latest \
   build
 
 # Check for CVEs
 docker run --rm \
   -v $(pwd):/src \
   -w /src \
-  ghcr.io/Nimbostack/nimbopacks:latest \
+  ghcr.io/nimbostack/nimbopacks:latest \
   update --check
 
 # Pin to a specific version
-docker pull ghcr.io/Nimbostack/nimbopacks:v0.1.0
+docker pull ghcr.io/nimbostack/nimbopacks:v0.1.0
 ```
 
 **CI example (GitHub Actions):**
@@ -238,7 +249,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/Nimbostack/nimbopacks:latest
+      image: ghcr.io/nimbostack/nimbopacks:latest
     steps:
       - uses: actions/checkout@v4
       - run: nimbopacks build --tag ghcr.io/myorg/myapp:${{ github.ref_name }} --push
@@ -251,7 +262,7 @@ jobs:
 All release images are keyless-signed with [cosign](https://github.com/sigstore/cosign). Verify before running:
 
 ```bash
-cosign verify ghcr.io/Nimbostack/nimbopacks:latest \
+cosign verify ghcr.io/nimbostack/nimbopacks:latest \
   --certificate-identity-regexp="https://github.com/Nimbostack/nimbopacks/.github/workflows/release.yml" \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com"
 ```

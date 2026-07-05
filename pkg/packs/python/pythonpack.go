@@ -72,9 +72,15 @@ func (p *Pack) Detect(_ context.Context, srcDir string) (*types.DetectResult, er
 func (p *Pack) GenerateConfig(_ context.Context, _ string, detected *types.DetectResult, templateName string) (*types.NimpackConfig, error) {
 	cfg := pack.BaseConfig("app", "0.0.1", p.Name(), templateName)
 	cfg.Image.Packages = []string{"python-3.12", "ca-certificates-bundle"}
-	cfg.Image.Env = map[string]string{"PYTHONDONTWRITEBYTECODE": "1", "PYTHONUNBUFFERED": "1"}
-	cfg.Build.Dependencies = []string{"python-3.12", "py3-pip", "build-base"}
-	cfg.Build.Command = "pip install --no-cache-dir -r requirements.txt"
+	// The app source is installed at /app; PYTHONPATH makes its modules
+	// importable since the container's working directory is / (not /app).
+	cfg.Image.Env = map[string]string{"PYTHONDONTWRITEBYTECODE": "1", "PYTHONUNBUFFERED": "1", "PYTHONPATH": "/app"}
+	// py3.12-pip matches the python-3.12 runtime; py3-pip would pull a
+	// different python (3.13) and `python3 -m pip` would find no pip module.
+	cfg.Build.Dependencies = []string{"python-3.12", "py3.12-pip", "build-base"}
+	// Vendor deps into /app so they ship in the image (only ${{targets.destdir}}
+	// is packaged) and resolve via PYTHONPATH=/app at runtime.
+	cfg.Build.Command = "python3 -m pip install --no-cache-dir --target /home/build/output/app -r requirements.txt"
 	ep := detected.Metadata["entrypoint"]
 	fw := detected.Metadata["framework"]
 	switch fw {
@@ -84,15 +90,14 @@ func (p *Pack) GenerateConfig(_ context.Context, _ string, detected *types.Detec
 			ep = "app.main:app"
 		}
 		cfg.Image.Cmd = []string{"-m", "uvicorn", ep, "--host=0.0.0.0"}
-		cfg.Image.Packages = append(cfg.Image.Packages, "py3-uvicorn")
 	case "django":
 		cfg.Image.Entrypoint = "python3"
 		cfg.Image.Cmd = []string{"-m", "gunicorn", "config.wsgi", "--bind=0.0.0.0:8000"}
-		cfg.Image.Packages = append(cfg.Image.Packages, "py3-gunicorn")
 	default:
 		cfg.Image.Entrypoint = "python3"
 		if ep != "" {
-			cfg.Image.Cmd = []string{ep}
+			// ep is a script filename; run it by absolute path under /app.
+			cfg.Image.Cmd = []string{"/app/" + ep}
 		}
 	}
 	return &cfg, nil
@@ -103,9 +108,16 @@ func (p *Pack) Plan(_ context.Context, _ string, cfg *types.NimpackConfig) (*typ
 	melange.Package.Dependencies = types.MelangeDependencies{Runtime: cfg.Image.Packages}
 	melange.Pipeline = []types.MelangePipelineStep{
 		{Runs: cfg.Build.Command},
-		{Runs: "mkdir -p /home/build/output/app\ncp -r . /home/build/output/app/"},
+		// Stage the source tree under /app, then install it into the package
+		// root. The find excludes the staging dir itself; a plain `cp -r .`
+		// would recurse into it and busybox cp exits non-zero.
+		{Runs: "mkdir -p /home/build/output/app\nfind . -mindepth 1 -maxdepth 1 ! -name output -exec cp -r {} /home/build/output/app/ \\;"},
+		pack.InstallOutputStep(),
 	}
 	apko := pack.NewApkoConfig(cfg.Project.Name, cfg.Image.Entrypoint, cfg.Image.Packages)
+	if len(cfg.Image.Cmd) > 0 {
+		apko.Cmd = strings.Join(cfg.Image.Cmd, " ")
+	}
 	maps.Copy(apko.Environment, cfg.Image.Env)
 	plan := &types.BuildPlan{Melange: melange, Apko: apko}
 	pack.ApplyConfig(plan, cfg)

@@ -1,0 +1,78 @@
+name: Samples
+
+# Build each sample and run the resulting image to prove it actually works.
+# This is heavier than the unit-test CI (it runs melange + apko + Docker), so it
+# only triggers when sample/pack/backend code changes, on manual dispatch, and
+# weekly (to catch drift in the rolling Wolfi package set).
+on:
+  pull_request:
+    paths:
+      - 'samples/**'
+      - 'pkg/packs/**'
+      - 'pkg/templates/**'
+      - 'pkg/backend/**'
+      - 'internal/**'
+      - 'cmd/**'
+      - '.github/workflows/samples.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: ${{ matrix.sample }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        sample:
+          - go/rest
+          - go/grpc
+          - dotnet/minimal-api
+          - dotnet/webapi
+          - dotnet/monorepo
+          - dotnet/grpc
+          - dotnet/blazor
+          - dotnet/worker
+          - java/maven
+          - java/gradle
+          - java/micronaut
+          - java/quarkus
+          - java/webflux
+          - node/express
+          - node/fastify
+          - node/hono
+          - node/nestjs
+          - node/nextjs
+          - python/fastapi
+          - python/django
+          - web/static
+          - web/spa
+          - web/hugo
+          - web/custom-nginx
+          - showcase/layering
+          - showcase/custom-ca-certs
+          - showcase/cve-patching
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+      - name: Enable rootless melange (bubblewrap)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Build nimbopacks
+        run: go build -o bin/nimbopacks ./cmd/nimbopacks
+      - name: Install toolchain (melange + apko + grype)
+        run: ./bin/nimbopacks toolchain install
+      - name: Verify sample
+        env:
+          SAMPLE: ${{ matrix.sample }}
+        run: ./samples/verify-builds.sh "$SAMPLE"

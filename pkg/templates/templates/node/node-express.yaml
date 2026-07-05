@@ -16,7 +16,7 @@ build:
 
 image:
   entrypoint: node
-  cmd: ["dist/index.js"]
+  cmd: ["/app/dist/index.js"]
   packages:
     - nodejs-20
     - ca-certificates-bundle
