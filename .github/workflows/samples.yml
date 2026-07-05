@@ -63,6 +63,11 @@ jobs:
         with:
           go-version: '1.24'
           cache: true
+      - name: Enable rootless melange (bubblewrap)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Build nimbopacks
         run: go build -o bin/nimbopacks ./cmd/nimbopacks
       - name: Install toolchain (melange + apko + grype)
