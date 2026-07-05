@@ -1,0 +1,29 @@
+schema_version: "1"
+
+project:
+  name: web-spa-sample
+  version: 0.0.1
+
+build:
+  pack: web
+  template: web-spa
+  command: "npm install && npm run build"
+  dependencies:
+    - nodejs-20
+    - npm
+    - build-base
+  env:
+    OUTPUT_DIR: dist
+
+image:
+  entrypoint: /usr/sbin/nginx
+  cmd: ["-e", "/dev/stderr", "-c", "/etc/nginx/nimbopacks.conf"]
+  packages:
+    - nginx
+    - ca-certificates-bundle
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true
