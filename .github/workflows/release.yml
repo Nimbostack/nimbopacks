@@ -100,6 +100,9 @@ jobs:
             # Build and push multi-arch image + SBOM.
             # --repository-append adds the locally built nimbopacks APK.
             # --keyring-append trusts the ephemeral key used to sign it.
+            # apko does not create --sbom-path itself; it renames the generated
+            # SBOMs into it, so the directory must exist beforehand.
+            mkdir -p sbom
             apko publish apko.yaml \
               "ghcr.io/nimbostack/nimbopacks:${IMAGE_TAG}" \
               "ghcr.io/nimbostack/nimbopacks:latest" \
