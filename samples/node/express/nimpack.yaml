@@ -1,0 +1,26 @@
+schema_version: "1"
+
+project:
+  name: node-express-sample
+  version: 0.0.1
+
+build:
+  pack: node
+  template: node-express
+  command: "npm install --omit=dev"
+
+image:
+  entrypoint: node
+  cmd: ["/app/index.js"]
+  packages:
+    - nodejs-20
+    - ca-certificates-bundle
+  env:
+    NODE_ENV: production
+    PORT: "8080"
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true

@@ -1,0 +1,29 @@
+schema_version: "1"
+
+project:
+  name: node-nestjs-sample
+  version: 0.0.1
+
+build:
+  pack: node
+  template: node-nestjs
+  # Compile TypeScript to dist/ (tsc), keeping dev deps for the build only.
+  # The whole tree (including node_modules) is copied into /app, and the
+  # compiled entrypoint dist/main.js is run by node.
+  command: "npm install && npm run build"
+
+image:
+  entrypoint: node
+  cmd: ["/app/dist/main.js"]
+  packages:
+    - nodejs-20
+    - ca-certificates-bundle
+  env:
+    NODE_ENV: production
+    PORT: "8080"
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true

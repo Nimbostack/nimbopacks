@@ -1,0 +1,38 @@
+schema_version: "1"
+
+project:
+  name: node-nextjs-sample
+  version: 0.0.1
+
+build:
+  pack: node
+  template: node-nextjs
+  # `next build` with `output: "standalone"` writes a runnable server tree to
+  # .next/standalone. Move it (plus static + public assets) into the output
+  # directory the node-nextjs template expects.
+  command: |
+    npm install &&
+    npm run build &&
+    mkdir -p /home/build/output/app &&
+    cp -r .next/standalone/. /home/build/output/app/ &&
+    mkdir -p /home/build/output/app/.next &&
+    cp -r .next/static /home/build/output/app/.next/static &&
+    if [ -d public ]; then cp -r public /home/build/output/app/public; fi
+
+image:
+  entrypoint: node
+  cmd: ["/app/server.js"]
+  packages:
+    - nodejs-20
+    - ca-certificates-bundle
+  env:
+    NODE_ENV: production
+    NEXT_TELEMETRY_DISABLED: "1"
+    PORT: "3000"
+    HOSTNAME: "0.0.0.0"
+  run_as: 65532
+  ports:
+    - "3000"
+
+update:
+  auto_check: true
