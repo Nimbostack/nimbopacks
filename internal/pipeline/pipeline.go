@@ -16,7 +16,7 @@ type BuildOptions struct {
 	Tag         string
 	OutputDir   string
 	Push        bool
-	BackendName string // "wolfi", "ocidirect", or "" for auto-select
+	BackendName string // "wolfi", or "" for auto-select
 	CACertPath  string // CLI/env override for custom CA cert
 }
 

@@ -550,8 +550,7 @@ func updateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update [source-dir]",
 		Short: "Scan for CVEs and report remediation steps",
-		Long: `Builds the image, then scans the SBOM (wolfi backend) or OCI tarball
-(ocidirect backend) for CVEs using grype.
+		Long: `Builds the image, then scans the apko-generated SBOM for CVEs using grype.
 
 Check mode (for CI):
   nimbopacks update --check                    # exit 1 if CVEs found at HIGH or above

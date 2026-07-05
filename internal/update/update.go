@@ -32,7 +32,7 @@ type CheckOptions struct {
 	// DBCachePath overrides GRYPE_DB_CACHE_DIR.
 	DBCachePath string
 
-	// BackendName selects the build backend ("wolfi", "ocidirect", or "" for auto).
+	// BackendName selects the build backend ("wolfi", or "" for auto-select).
 	BackendName string
 }
 
@@ -96,7 +96,7 @@ func buildForScan(ctx context.Context, opts CheckOptions) (*backend.ImageResult,
 }
 
 // resolveScanInput picks the best grype input from the build result.
-// Prefers SBOM (wolfi) over OCI archive (ocidirect).
+// Prefers an SBOM when the backend produced one, else scans the OCI archive.
 func resolveScanInput(img *backend.ImageResult) (ScanInput, error) {
 	if img.SBOMPath != "" {
 		return ScanInput{Type: ScanSBOM, Path: img.SBOMPath}, nil
@@ -112,6 +112,9 @@ func resolveScanInput(img *backend.ImageResult) (ScanInput, error) {
 func buildReport(matches []GrypeMatch, pinned []string) *types.UpdateReport {
 	type key struct{ name, version string }
 	grouped := map[key]*types.PackageUpdate{}
+	// Track CVE IDs already recorded per package — grype can emit the same
+	// match more than once when a package appears multiple times in the SBOM.
+	seenCVE := map[key]map[string]bool{}
 	var order []key
 
 	for _, m := range matches {
@@ -130,9 +133,13 @@ func buildReport(matches []GrypeMatch, pinned []string) *types.UpdateReport {
 				Pinned:         isPinned(m.Artifact.Name, m.Artifact.Version, pinned),
 			}
 			grouped[k] = p
+			seenCVE[k] = map[string]bool{}
 			order = append(order, k)
 		}
-		p.CVEs = append(p.CVEs, m.Vulnerability.ID)
+		if !seenCVE[k][m.Vulnerability.ID] {
+			seenCVE[k][m.Vulnerability.ID] = true
+			p.CVEs = append(p.CVEs, m.Vulnerability.ID)
+		}
 		if severityRank(m.Vulnerability.Severity) > severityRank(p.Severity) {
 			p.Severity = m.Vulnerability.Severity
 		}

@@ -65,6 +65,59 @@ func TestDetect_NextJSSuggestsTemplate(t *testing.T) {
 	}
 }
 
+func TestDetect_NestJSSuggestsTemplate(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name":"api","dependencies":{"@nestjs/core":"10.0.0","reflect-metadata":"0.2.0"}}`)
+
+	p := &Pack{}
+	res, _ := p.Detect(t.Context(), dir)
+	if res.SuggestedTemplate != "node-nestjs" {
+		t.Errorf("expected node-nestjs, got %s", res.SuggestedTemplate)
+	}
+	if res.Metadata["framework"] != "nestjs" {
+		t.Errorf("expected framework=nestjs, got %s", res.Metadata["framework"])
+	}
+}
+
+func TestDetect_FastifySuggestsTemplate(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name":"api","dependencies":{"fastify":"5.0.0"}}`)
+
+	p := &Pack{}
+	res, _ := p.Detect(t.Context(), dir)
+	if res.SuggestedTemplate != "node-fastify" {
+		t.Errorf("expected node-fastify, got %s", res.SuggestedTemplate)
+	}
+	if res.Metadata["framework"] != "fastify" {
+		t.Errorf("expected framework=fastify, got %s", res.Metadata["framework"])
+	}
+}
+
+func TestDetect_HonoSuggestsTemplate(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name":"api","dependencies":{"hono":"4.0.0"}}`)
+
+	p := &Pack{}
+	res, _ := p.Detect(t.Context(), dir)
+	if res.SuggestedTemplate != "node-hono" {
+		t.Errorf("expected node-hono, got %s", res.SuggestedTemplate)
+	}
+	if res.Metadata["framework"] != "hono" {
+		t.Errorf("expected framework=hono, got %s", res.Metadata["framework"])
+	}
+}
+
+func TestDetect_ExpressSuggestsDefaultTemplate(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name":"api","dependencies":{"express":"4.18.0"}}`)
+
+	p := &Pack{}
+	res, _ := p.Detect(t.Context(), dir)
+	if res.SuggestedTemplate != "node-express" {
+		t.Errorf("expected node-express, got %s", res.SuggestedTemplate)
+	}
+}
+
 func TestDetect_TypeScriptProject(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "package.json", `{"name":"api","dependencies":{"express":"4.18.0"}}`)

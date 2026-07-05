@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -89,21 +91,29 @@ func (b *Backend) BuildPackage(ctx context.Context, plan *types.BuildPlan, opts 
 		fmt.Printf("  → Runner: %s (bubblewrap not available)\n", runner)
 	}
 
-	// Custom CA certificates: write bundle and pass to melange.
 	if opts.TLS.HasCustomCAs() {
-		bundlePath, err := tlsutil.WriteBundleToWorkDir(workDir, opts.SourceDir, opts.TLS)
+		pemData, err := tlsutil.LoadCACerts(opts.SourceDir, opts.TLS)
 		if err != nil {
 			return nil, fmt.Errorf("preparing CA certs: %w", err)
 		}
-		if bundlePath != "" {
-			// Set SSL_CERT_FILE so melange's sandbox trusts custom CAs.
-			for k, v := range tlsutil.MelangeEnvVars(bundlePath) {
-				args = append(args, "--env", fmt.Sprintf("%s=%s", k, v))
+		if len(pemData) > 0 {
+			const bundleName = ".nimbopacks-ca-bundle.pem"
+			hostBundle := filepath.Join(opts.SourceDir, bundleName)
+			if err := os.WriteFile(hostBundle, pemData, 0o644); err != nil {
+				return nil, fmt.Errorf("writing CA bundle into workspace: %w", err)
 			}
+			defer os.Remove(hostBundle)
+			guestBundle := "/home/build/" + bundleName
+
+			envFile := filepath.Join(workDir, "melange.env")
+			if err := writeEnvFile(envFile, tlsutil.MelangeEnvVars(guestBundle)); err != nil {
+				return nil, fmt.Errorf("writing melange env file: %w", err)
+			}
+			args = append(args, "--env-file", envFile)
 
 			// If injecting into image, add a pipeline step.
 			if opts.TLS.ShouldInjectIntoImage() {
-				step := tlsutil.ImageCACertInstallStep(bundlePath)
+				step := tlsutil.ImageCACertInstallStep(guestBundle)
 				if step != nil {
 					plan.Melange.Pipeline = append(plan.Melange.Pipeline, *step)
 					// Re-write melange.yaml with the extra step.
@@ -129,8 +139,6 @@ func (b *Backend) AssembleImage(ctx context.Context, plan *types.BuildPlan, buil
 	workDir := filepath.Dir(buildResult.PackagesDir)
 
 	// Patch the local repo path.
-	// apko expects a plain absolute path (no @local prefix) for local repositories
-	// so that it correctly appends /<arch>/ to find the APKINDEX.
 	apkoCfg := plan.Apko
 	for i, repo := range apkoCfg.Contents.Repositories {
 		if repo == "/home/build/packages" {
@@ -311,6 +319,21 @@ func runTool(ctx context.Context, name string, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// writeEnvFile writes env vars as KEY=VALUE lines for melange's --env-file.
+// Keys are sorted so the output is deterministic (reproducible builds).
+func writeEnvFile(path string, env map[string]string) error {
+	keys := make([]string, 0, len(env))
+	for k := range env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		fmt.Fprintf(&b, "%s=%s\n", k, env[k])
+	}
+	return os.WriteFile(path, []byte(b.String()), 0o600)
 }
 
 func writeYAML(path string, v any) error {

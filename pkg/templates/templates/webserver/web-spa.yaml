@@ -22,7 +22,7 @@ build:
 
 image:
   entrypoint: /usr/sbin/nginx
-  cmd: ["-c", "/etc/nginx/nginx.conf", "-g", "daemon off;"]
+  cmd: ["-e", "/dev/stderr", "-c", "/etc/nginx/nimbopacks.conf"]
   packages:
     - nginx
     - ca-certificates-bundle

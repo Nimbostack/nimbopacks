@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"strings"
 
 	"github.com/Nimbostack/nimbopacks/internal/pack"
 	"github.com/Nimbostack/nimbopacks/internal/pack/registry"
@@ -37,8 +38,15 @@ func (p *Pack) Detect(_ context.Context, srcDir string) (*types.DetectResult, er
 		meta["typescript"] = "true"
 	}
 	suggested := "node-express"
-	if fw == "nextjs" {
+	switch fw {
+	case "nextjs":
 		suggested = "node-nextjs"
+	case "nestjs":
+		suggested = "node-nestjs"
+	case "fastify":
+		suggested = "node-fastify"
+	case "hono":
+		suggested = "node-hono"
 	}
 	return &types.DetectResult{
 		PackName: p.Name(), Confidence: confidence,
@@ -65,9 +73,17 @@ func (p *Pack) Plan(_ context.Context, _ string, cfg *types.NimpackConfig) (*typ
 	melange.Package.Dependencies = types.MelangeDependencies{Runtime: cfg.Image.Packages}
 	melange.Pipeline = []types.MelangePipelineStep{
 		{Runs: cfg.Build.Command},
-		{Runs: "mkdir -p /home/build/output/app\ncp -r . /home/build/output/app/"},
+		// Stage the whole source tree (including node_modules) under /app, then
+		// install it into the package root (${{targets.destdir}} — the only thing
+		// melange actually packages). The find excludes the staging dir itself;
+		// a plain `cp -r .` would recurse into it and busybox cp exits non-zero.
+		{Runs: "mkdir -p /home/build/output/app\nfind . -mindepth 1 -maxdepth 1 ! -name output -exec cp -r {} /home/build/output/app/ \\;"},
+		pack.InstallOutputStep(),
 	}
 	apko := pack.NewApkoConfig(cfg.Project.Name, cfg.Image.Entrypoint, cfg.Image.Packages)
+	if len(cfg.Image.Cmd) > 0 {
+		apko.Cmd = strings.Join(cfg.Image.Cmd, " ")
+	}
 	maps.Copy(apko.Environment, cfg.Image.Env)
 	plan := &types.BuildPlan{Melange: melange, Apko: apko}
 	pack.ApplyConfig(plan, cfg)

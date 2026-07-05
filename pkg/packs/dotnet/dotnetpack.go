@@ -63,6 +63,22 @@ func (p *Pack) Detect(_ context.Context, srcDir string) (*types.DetectResult, er
 		default:
 			libProjects = append(libProjects, slashDir)
 		}
+		// Sub-classify web projects by referenced packages.
+		if strings.Contains(content, "Grpc.AspNetCore") {
+			meta["has_grpc"] = "true"
+		}
+		if strings.Contains(content, "Microsoft.AspNetCore.Components") {
+			meta["has_blazor"] = "true"
+		}
+	}
+
+	// A *.proto file is a strong gRPC signal even without an explicit package ref.
+	if protoFiles, _ := pack.FindFilesRecursive(srcDir, "*.proto"); len(protoFiles) > 0 {
+		meta["has_grpc"] = "true"
+	}
+	// *.razor files indicate a Blazor app.
+	if razorFiles, _ := pack.FindFilesRecursive(srcDir, "*.razor"); len(razorFiles) > 0 {
+		meta["has_blazor"] = "true"
 	}
 
 	if len(webProjects) > 0 {
@@ -106,6 +122,14 @@ func (p *Pack) Detect(_ context.Context, srcDir string) (*types.DetectResult, er
 		suggested = "dotnet-solution"
 		summary = fmt.Sprintf(".NET solution (%d projects: %d web, %d worker, %d lib)",
 			len(csprojFiles), len(webProjects), len(workerProjects), len(libProjects))
+	case len(webProjects) > 0 && meta["has_grpc"] == "true":
+		confidence = 0.9
+		suggested = "dotnet-grpc"
+		summary = ".NET gRPC service"
+	case len(webProjects) > 0 && meta["has_blazor"] == "true":
+		confidence = 0.9
+		suggested = "dotnet-blazor"
+		summary = ".NET Blazor app"
 	case len(webProjects) > 0 && isMinimal:
 		confidence = 0.9
 		suggested = "dotnet-minimal-api"
@@ -116,7 +140,7 @@ func (p *Pack) Detect(_ context.Context, srcDir string) (*types.DetectResult, er
 		summary = ".NET Web API"
 	case len(workerProjects) > 0:
 		confidence = 0.85
-		suggested = "dotnet-webapi" // closest match
+		suggested = "dotnet-worker"
 		summary = ".NET Worker Service"
 	default:
 		confidence = 0.7
@@ -231,6 +255,10 @@ func (p *Pack) Plan(_ context.Context, _ string, cfg *types.NimpackConfig) (*typ
 			{Runs: cfg.Build.Command},
 		}
 	}
+
+	// Install the staged /home/build/output tree into the package root so the
+	// published files actually land in the image.
+	melange.Pipeline = append(melange.Pipeline, pack.InstallOutputStep())
 
 	apko := pack.NewApkoConfig(name, cfg.Image.Entrypoint, cfg.Image.Packages)
 	if len(cfg.Image.Cmd) > 0 {

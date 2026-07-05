@@ -1,7 +1,7 @@
-# Template: java-maven
+# Template: java-micronaut
 # Pack: java
-# Description: Java Maven application
-# Tags: java, maven
+# Description: Micronaut 4 application (Maven, shaded jar)
+# Tags: java, maven, micronaut
 ---
 schema_version: "1"
 
@@ -11,12 +11,14 @@ project:
 
 build:
   pack: java
-  template: java-maven
+  template: java-micronaut
   command: "mvn package -DskipTests"
   dependencies:
     - openjdk-21
     - maven
     - build-base
+  env:
+    JAR_DIR: target
 
 image:
   entrypoint: /usr/lib/jvm/java-21-openjdk/bin/java

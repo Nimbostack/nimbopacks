@@ -116,7 +116,7 @@ func NewMelangeConfig(name, version string, buildDeps []string) types.MelangeCon
 			Contents: types.MelangeContents{
 				Keyring:      []string{"https://packages.wolfi.dev/os/wolfi-signing.rsa.pub"},
 				Repositories: []string{"https://packages.wolfi.dev/os"},
-				Packages:     Dedupe(append([]string{"wolfi-baselayout"}, buildDeps...)),
+				Packages:     Dedupe(append([]string{"wolfi-baselayout", "busybox"}, buildDeps...)),
 			},
 		},
 	}
@@ -178,6 +178,24 @@ func ApplyConfig(plan *types.BuildPlan, cfg *types.NimpackConfig) {
 		plan.Apko.Accounts.RunAs = fmt.Sprintf("%d", cfg.Image.RunAs)
 	}
 	maps.Copy(plan.Apko.Environment, cfg.Image.Env)
+}
+
+// InstallOutputStep returns the final melange pipeline step that copies the
+// staged /home/build/output tree into the package root (${{targets.destdir}}).
+//
+// melange only packages files placed under ${{targets.destdir}}; nothing else
+// in the build workspace ends up in the resulting image. Packs that stage their
+// build artifacts under /home/build/output/<dest> (node, java, dotnet, python,
+// webserver) must append this step so those files actually make it into the
+// image.
+//
+// cp -a preserves ownership and permissions, which matters for packs that
+// chown staged directories to the runtime UID (e.g. the webserver pack's nginx
+// log/cache/run dirs owned by 65532).
+func InstallOutputStep() types.MelangePipelineStep {
+	return types.MelangePipelineStep{
+		Runs: "mkdir -p \"${{targets.destdir}}\"\ncp -a /home/build/output/. \"${{targets.destdir}}/\"",
+	}
 }
 
 func Dedupe(items []string) []string {

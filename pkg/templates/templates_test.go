@@ -75,7 +75,9 @@ func TestList_HasExpectedTemplates(t *testing.T) {
 		"python-fastapi", "python-django",
 		"node-express", "node-nextjs",
 		"java-maven", "java-gradle",
+		"java-quarkus", "java-micronaut", "java-webflux",
 		"dotnet-webapi", "dotnet-solution", "dotnet-minimal-api",
+		"dotnet-grpc", "dotnet-worker", "dotnet-blazor",
 		"web-static", "web-spa", "web-hugo",
 	}
 	for _, e := range expected {
@@ -87,8 +89,8 @@ func TestList_HasExpectedTemplates(t *testing.T) {
 
 func TestListByPack(t *testing.T) {
 	dotnet := ListByPack("dotnet")
-	if len(dotnet) != 3 {
-		t.Errorf("expected 3 dotnet templates, got %d", len(dotnet))
+	if len(dotnet) != 6 {
+		t.Errorf("expected 6 dotnet templates, got %d", len(dotnet))
 	}
 
 	web := ListByPack("web")
@@ -97,8 +99,8 @@ func TestListByPack(t *testing.T) {
 	}
 
 	java := ListByPack("java")
-	if len(java) != 2 {
-		t.Errorf("expected 2 java templates, got %d", len(java))
+	if len(java) != 5 {
+		t.Errorf("expected 5 java templates, got %d", len(java))
 	}
 }
 

@@ -1,7 +1,7 @@
-# Template: node-express
+# Template: node-nestjs
 # Pack: node
-# Description: Node.js Express API
-# Tags: web, api, rest
+# Description: NestJS application compiled with tsc
+# Tags: web, api, rest, typescript
 ---
 schema_version: "1"
 
@@ -11,20 +11,21 @@ project:
 
 build:
   pack: node
-  template: node-express
-  command: "npm ci"
+  template: node-nestjs
+  command: "npm install && npm run build"
 
 image:
   entrypoint: node
-  cmd: ["/app/dist/index.js"]
+  cmd: ["/app/dist/main.js"]
   packages:
     - nodejs-20
     - ca-certificates-bundle
   env:
     NODE_ENV: production
+    PORT: "8080"
   run_as: 65532
   ports:
-    - "3000"
+    - "8080"
 
 update:
   auto_check: true

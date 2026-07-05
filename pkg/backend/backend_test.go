@@ -16,12 +16,9 @@ func TestGetCapabilities(t *testing.T) {
 		t.Error("wolfi should have atomic patching")
 	}
 
-	oci := GetCapabilities("ocidirect")
-	if oci.Reproducible {
-		t.Error("ocidirect should not be reproducible")
-	}
-	if !oci.NoExternalDeps {
-		t.Error("ocidirect should have no external deps")
+	// Unknown backends report zero-value capabilities.
+	if (GetCapabilities("nonexistent") != Capabilities{}) {
+		t.Error("unknown backend should report zero-value capabilities")
 	}
 }
 

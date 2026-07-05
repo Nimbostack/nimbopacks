@@ -1,13 +1,4 @@
 // Package tlsutil handles custom CA certificates across the entire nimbopacks pipeline.
-//
-// Custom CAs need to work in five places:
-//
-//  1. Toolchain downloads (fetching melange/apko from GitHub)
-//  2. Melange builds (package downloads inside bubblewrap sandbox)
-//  3. Apko image assembly (pulling base packages from Wolfi repos)
-//  4. Registry pushes (pushing to private registries with self-signed certs)
-//  5. The final image (so the running app trusts the same CAs)
-//
 // This package provides helpers for all five scenarios.
 package tlsutil
 
@@ -102,30 +93,6 @@ func NewTLSConfig(srcDir string, cfg types.TLSConfig) (*tls.Config, error) {
 	return &tls.Config{RootCAs: pool}, nil
 }
 
-// WriteBundleToWorkDir writes the combined CA bundle to a temp file
-// so it can be mounted into melange/apko builds.
-// Returns the path to the bundle file.
-func WriteBundleToWorkDir(workDir, srcDir string, cfg types.TLSConfig) (string, error) {
-	if !cfg.HasCustomCAs() {
-		return "", nil
-	}
-
-	pemData, err := LoadCACerts(srcDir, cfg)
-	if err != nil {
-		return "", err
-	}
-	if len(pemData) == 0 {
-		return "", nil
-	}
-
-	bundlePath := filepath.Join(workDir, "custom-ca-bundle.pem")
-	if err := os.WriteFile(bundlePath, pemData, 0o644); err != nil {
-		return "", fmt.Errorf("writing CA bundle: %w", err)
-	}
-
-	return bundlePath, nil
-}
-
 // MelangeEnvVars returns environment variables that tell melange's
 // build sandbox to trust the custom CAs.
 func MelangeEnvVars(bundlePath string) map[string]string {
@@ -141,16 +108,18 @@ func MelangeEnvVars(bundlePath string) map[string]string {
 	}
 }
 
-// ImageCACertInstallStep returns a melange pipeline step that installs
-// custom CAs into the image's trust store so the running app trusts them.
+// ImageCACertInstallStep returns a melange pipeline step that installs custom
+// CAs into the image so the running app trusts them.
 func ImageCACertInstallStep(bundlePath string) *types.MelangePipelineStep {
 	if bundlePath == "" {
 		return nil
 	}
 	return &types.MelangePipelineStep{
-		Runs: fmt.Sprintf(`# Install custom CA certificates into the image trust store
-mkdir -p /home/build/output/usr/local/share/ca-certificates
-cp %s /home/build/output/usr/local/share/ca-certificates/custom-ca.crt
+		Runs: fmt.Sprintf(`# Install custom CA certificates into the image trust locations
+mkdir -p "${{targets.destdir}}/usr/local/share/ca-certificates"
+cp %[1]s "${{targets.destdir}}/usr/local/share/ca-certificates/nimbopacks-custom-ca.crt"
+mkdir -p "${{targets.destdir}}/etc/ssl/certs"
+cp %[1]s "${{targets.destdir}}/etc/ssl/certs/nimbopacks-custom-ca.pem"
 `, bundlePath),
 	}
 }

@@ -34,7 +34,9 @@ func init() { registry.Register(&Pack{}) }
 
 type Pack struct{}
 
-func (p *Pack) Name() string { return "webserver" }
+// Name is "web" to match the build.pack value in the web-* templates and
+// samples (and the resulting detection output).
+func (p *Pack) Name() string { return "web" }
 
 // ---------- Detect ----------
 
@@ -78,21 +80,17 @@ func (p *Pack) Detect(_ context.Context, srcDir string) (*types.DetectResult, er
 		return nil, nil
 	}
 
-	// Check for custom nginx.conf.
-	if pack.FileExists(srcDir, "nginx.conf") {
-		meta["has_nginx_conf"] = "true"
-	}
-	if pack.FileExists(srcDir, "mime.types") {
-		meta["has_mime_types"] = "true"
-	}
-
-	// Check common nginx config locations.
-	for _, loc := range []string{"config/nginx.conf", ".nginx/nginx.conf", "docker/nginx.conf"} {
+	// Check for a custom nginx.conf. Record its path (not just a boolean) so
+	// GenerateConfig can wire NGINX_CONF_PATH — including the root location.
+	for _, loc := range []string{"nginx.conf", "config/nginx.conf", ".nginx/nginx.conf", "docker/nginx.conf"} {
 		if pack.FileExists(srcDir, loc) {
 			meta["has_nginx_conf"] = "true"
 			meta["nginx_conf_path"] = loc
 			break
 		}
+	}
+	if pack.FileExists(srcDir, "mime.types") {
+		meta["has_mime_types"] = "true"
 	}
 
 	return &types.DetectResult{
@@ -127,7 +125,11 @@ func (p *Pack) GenerateConfig(_ context.Context, srcDir string, detected *types.
 
 	cfg.Image.Packages = []string{"nginx", "ca-certificates-bundle"}
 	cfg.Image.Entrypoint = "/usr/sbin/nginx"
-	cfg.Image.Cmd = []string{"-c", "/etc/nginx/nginx.conf", "-g", "daemon off;"}
+	// Our config lives at nimbopacks.conf (the nginx package already owns
+	// /etc/nginx/nginx.conf). -e sets the early error log to stderr; the
+	// `daemon off;` directive is in the config itself (apko splits cmd on
+	// spaces, which would mangle a `-g "daemon off;"` argument).
+	cfg.Image.Cmd = []string{"-e", "/dev/stderr", "-c", "/etc/nginx/nimbopacks.conf"}
 	cfg.Image.Ports = []string{"8080"}
 	cfg.Image.RunAs = 65532
 
@@ -173,10 +175,13 @@ func (p *Pack) Plan(_ context.Context, _ string, cfg *types.NimpackConfig) (*typ
 	}
 
 	// Step 2: Copy static output to serve directory.
+	// find (rather than `cp -r <dir>/*`) skips the staging/build dirs — with
+	// OUTPUT_DIR="." a plain glob would recurse into /home/build/output and
+	// melange-out, and busybox cp exits non-zero on that.
 	steps = append(steps, types.MelangePipelineStep{
 		Runs: fmt.Sprintf(`# Copy static files to nginx serve directory
 mkdir -p /home/build/output/var/www/html
-cp -r %s/* /home/build/output/var/www/html/
+find %s -mindepth 1 -maxdepth 1 ! -name output ! -name melange-out -exec cp -r {} /home/build/output/var/www/html/ \;
 `, outputDir),
 	})
 
@@ -186,60 +191,50 @@ cp -r %s/* /home/build/output/var/www/html/
 		nginxConfPath = path
 	}
 
+	// We write to nimbopacks.conf (not nginx.conf): the nginx package already
+	// ships /etc/nginx/nginx.conf and /etc/nginx/mime.types, and apko forbids
+	// two packages owning the same file. The image cmd points nginx at this
+	// file via `-c /etc/nginx/nimbopacks.conf`, and the config reuses nginx's
+	// own /etc/nginx/mime.types.
 	if nginxConfPath != "" {
 		// User provided a custom nginx.conf.
 		steps = append(steps, types.MelangePipelineStep{
-			Runs: fmt.Sprintf(`# Install custom nginx.conf
+			Runs: fmt.Sprintf(`# Install custom nginx config
 mkdir -p /home/build/output/etc/nginx
-cp %s /home/build/output/etc/nginx/nginx.conf
+cp %s /home/build/output/etc/nginx/nimbopacks.conf
 `, nginxConfPath),
 		})
 	} else {
-		// Generate default nginx.conf.
+		// Generate default nginx config.
 		steps = append(steps, types.MelangePipelineStep{
-			Runs: fmt.Sprintf(`# Generate default nginx.conf
+			Runs: fmt.Sprintf(`# Generate default nginx config
 mkdir -p /home/build/output/etc/nginx
-cat > /home/build/output/etc/nginx/nginx.conf << 'NGINXEOF'
+cat > /home/build/output/etc/nginx/nimbopacks.conf << 'NGINXEOF'
 %s
 NGINXEOF
 `, defaultNginxConf),
 		})
 	}
 
-	// Step 4: mime.types — use custom if exists, otherwise generate default.
-	hasMimeTypes := false
-	if v, ok := cfg.Build.Env["HAS_MIME_TYPES"]; ok && v == "true" {
-		hasMimeTypes = true
-	}
+	// (mime.types intentionally not packaged — the config reuses the one shipped
+	// by the nginx package at /etc/nginx/mime.types.)
 
-	if !hasMimeTypes {
-		steps = append(steps, types.MelangePipelineStep{
-			Runs: fmt.Sprintf(`# Generate default mime.types
-cat > /home/build/output/etc/nginx/mime.types << 'MIMEEOF'
-%s
-MIMEEOF
-`, defaultMimeTypes),
-		})
-	} else {
-		steps = append(steps, types.MelangePipelineStep{
-			Runs: `# Install custom mime.types
-cp mime.types /home/build/output/etc/nginx/mime.types
-`,
-		})
-	}
-
-	// Step 5: Create required nginx directories.
+	// Step 4: Create required nginx directories.
 	steps = append(steps, types.MelangePipelineStep{
-		Runs: `# Create nginx runtime directories
-mkdir -p /home/build/output/var/log/nginx
+		Runs: `# Create nginx's writable runtime dir. melange packages files as root and
+# chown to another uid does not survive, but permission bits do — so make the
+# cache dir world-writable. nginx (running as the non-root runtime user) writes
+# its pid and temp subdirs (client_body, proxy, ...) here. Logs go to
+# stdout/stderr, so no log dir is needed. /var/run is intentionally avoided —
+# packaging it trips melange's tempdir linter.
 mkdir -p /home/build/output/var/cache/nginx
-mkdir -p /home/build/output/var/run
-touch /home/build/output/var/run/nginx.pid
-chown -R 65532:65532 /home/build/output/var/log/nginx
-chown -R 65532:65532 /home/build/output/var/cache/nginx
-chown -R 65532:65532 /home/build/output/var/run
+chmod 0777 /home/build/output/var/cache/nginx
 `,
 	})
+
+	// Install everything staged under /home/build/output (var/www/html, the
+	// nginx config, and the runtime dirs) into the package root.
+	steps = append(steps, pack.InstallOutputStep())
 
 	melange.Pipeline = steps
 
@@ -320,8 +315,16 @@ func detectWebFramework(srcDir string) (framework, buildCmd, outputDir string) {
 // ---------- Default configs ----------
 
 const defaultNginxConf = `worker_processes auto;
-pid /var/run/nginx.pid;
-error_log /var/log/nginx/error.log warn;
+# Run in the foreground. This lives here rather than as a -g "daemon off;"
+# command-line arg because apko splits cmd on spaces and would mangle the
+# quoted argument.
+daemon off;
+# Pid lives under the (writable, non-temp) cache dir; /var/run trips melange's
+# tempdir linter and isn't writable by the non-root runtime user.
+pid /var/cache/nginx/nginx.pid;
+# Log to the container's stdout/stderr (12-factor) so no writable log dir or
+# root-owned default path is needed.
+error_log /dev/stderr warn;
 
 events {
     worker_connections 1024;
@@ -335,7 +338,15 @@ http {
                     '$status $body_bytes_sent "$http_referer" '
                     '"$http_user_agent"';
 
-    access_log /var/log/nginx/access.log main;
+    access_log /dev/stdout main;
+
+    # nginx's compiled-in temp paths live under root-owned /var/lib/nginx;
+    # point them at the writable cache dir so the non-root user can create them.
+    client_body_temp_path /var/cache/nginx/client_body;
+    proxy_temp_path /var/cache/nginx/proxy;
+    fastcgi_temp_path /var/cache/nginx/fastcgi;
+    uwsgi_temp_path /var/cache/nginx/uwsgi;
+    scgi_temp_path /var/cache/nginx/scgi;
 
     sendfile on;
     tcp_nopush on;
@@ -400,46 +411,4 @@ http {
             add_header Content-Type text/plain;
         }
     }
-}`
-
-const defaultMimeTypes = `types {
-    text/html                                        html htm shtml;
-    text/css                                         css;
-    text/xml                                         xml;
-    text/plain                                       txt;
-    text/javascript                                  js mjs;
-
-    application/json                                 json;
-    application/javascript                           js;
-    application/xml                                  xml;
-    application/rss+xml                              rss;
-    application/atom+xml                             atom;
-    application/pdf                                  pdf;
-    application/zip                                  zip;
-    application/gzip                                 gz;
-    application/wasm                                 wasm;
-    application/manifest+json                        webmanifest;
-
-    image/gif                                        gif;
-    image/jpeg                                       jpeg jpg;
-    image/png                                        png;
-    image/svg+xml                                    svg svgz;
-    image/webp                                       webp;
-    image/avif                                       avif;
-    image/x-icon                                     ico;
-
-    font/woff                                        woff;
-    font/woff2                                       woff2;
-    font/ttf                                         ttf;
-    font/otf                                         otf;
-    application/vnd.ms-fontobject                    eot;
-
-    audio/mpeg                                       mp3;
-    audio/ogg                                        ogg;
-    audio/wav                                        wav;
-    audio/webm                                       weba;
-
-    video/mp4                                        mp4;
-    video/webm                                       webm;
-    video/ogg                                        ogv;
 }`
