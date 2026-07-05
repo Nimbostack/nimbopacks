@@ -1,0 +1,36 @@
+schema_version: "1"
+
+project:
+  name: python-django-sample
+  version: 0.0.1
+
+build:
+  pack: python
+  template: python-django
+  # Vendor the pinned deps straight into /app (where PYTHONPATH points) using
+  # prebuilt PyPI wheels. `pip` is not on PATH in Wolfi — use `python3 -m pip`.
+  command: "python3 -m pip install --no-cache-dir --target /home/build/output/app -r requirements.txt"
+  dependencies:
+    - python-3.12
+    # Version-matched pip; py3-pip would pull a different python (3.13) and
+    # `python3 -m pip` would then find no pip module.
+    - py3.12-pip
+    - build-base
+
+image:
+  entrypoint: python3
+  cmd: ["-m", "gunicorn", "config.wsgi:application", "--bind=0.0.0.0:8080", "--workers=2"]
+  packages:
+    - python-3.12
+    - ca-certificates-bundle
+  env:
+    PYTHONDONTWRITEBYTECODE: "1"
+    PYTHONUNBUFFERED: "1"
+    PYTHONPATH: /app
+    DJANGO_SETTINGS_MODULE: config.settings
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true
