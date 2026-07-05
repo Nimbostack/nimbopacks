@@ -91,14 +91,14 @@ jobs:
             # --repository-append adds the locally built nimbopacks APK.
             # --keyring-append trusts the ephemeral key used to sign it.
             apko publish apko.yaml \
-              "ghcr.io/Nimbostack/nimbopacks:${IMAGE_TAG}" \
-              "ghcr.io/Nimbostack/nimbopacks:latest" \
+              "ghcr.io/nimbostack/nimbopacks:${IMAGE_TAG}" \
+              "ghcr.io/nimbostack/nimbopacks:latest" \
               --keyring-append melange.rsa.pub \
               --repository-append packages \
               --arch x86_64,aarch64 \
               --sbom-path sbom
 
             # Sign both tags against the resolved image digest (keyless).
-            DIGEST=$(crane digest "ghcr.io/Nimbostack/nimbopacks:${IMAGE_TAG}")
-            cosign sign --yes "ghcr.io/Nimbostack/nimbopacks:${IMAGE_TAG}@${DIGEST}"
-            cosign sign --yes "ghcr.io/Nimbostack/nimbopacks:latest@${DIGEST}"
+            DIGEST=$(crane digest "ghcr.io/nimbostack/nimbopacks:${IMAGE_TAG}")
+            cosign sign --yes "ghcr.io/nimbostack/nimbopacks:${IMAGE_TAG}@${DIGEST}"
+            cosign sign --yes "ghcr.io/nimbostack/nimbopacks:latest@${DIGEST}"
