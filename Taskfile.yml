@@ -7,22 +7,27 @@ vars:
 
 tasks:
   build:
+    desc: Build the nimbopacks binary into bin/
     cmds:
       - go build {{.LDFLAGS}} -o bin/nimbopacks ./cmd/nimbopacks
 
   install:
+    desc: go install nimbopacks into GOBIN
     cmds:
       - go install {{.LDFLAGS}} ./cmd/nimbopacks
 
   test:
+    desc: Run all tests
     cmds:
       - go test ./...
 
   test-verbose:
+    desc: Run all tests with verbose output
     cmds:
       - go test -v ./...
 
   test-cover:
+    desc: Run tests and write coverage.html
     cmds:
       - go test -coverprofile=coverage.out ./...
       - go tool cover -html=coverage.out -o coverage.html
@@ -38,6 +43,7 @@ tasks:
       - golangci-lint run --tests --timeout 10m --fix --config ./.golangci.yaml ./...
 
   clean:
+    desc: Remove build output and coverage artifacts
     cmds:
       - rm -rf bin/ coverage.out coverage.html
 
