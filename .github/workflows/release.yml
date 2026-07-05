@@ -5,15 +5,17 @@ on:
     tags:
       - 'v*.*.*'
 
+# Minimal read-only default; jobs elevate only what they need.
 permissions:
-  contents: write
-  packages: write
-  id-token: write
+  contents: read
 
 jobs:
   goreleaser:
     name: GoReleaser
     runs-on: ubuntu-latest
+    # Create the GitHub Release and upload artifacts.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -67,6 +69,14 @@ jobs:
           archs: x86_64,aarch64
           source-dir: ${{ github.workspace }}
           package-version-tag: ${{ github.ref_name }}
+
+      - name: Sign APKINDEX
+        run: |
+          for arch in x86_64 aarch64; do
+            melange sign-index \
+              --signing-key "${{ github.workspace }}/melange.rsa" \
+              "${{ github.workspace }}/packages/${arch}/APKINDEX.tar.gz"
+          done
 
       # Assemble the OCI image with apko, push to GHCR, and sign keylessly.
       # Runs inside wolfi-act so apko/cosign/crane are available without
