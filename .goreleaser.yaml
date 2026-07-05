@@ -22,7 +22,8 @@ builds:
 
 archives:
   - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
-    format: tar.gz
+    formats:
+      - tar.gz
     files:
       - LICENSE
 
@@ -31,8 +32,10 @@ checksum:
   algorithm: sha256
 
 sboms:
-  - artifacts: archive
-  - artifacts: binary
+  - id: archive
+    artifacts: archive
+  - id: binary
+    artifacts: binary
 
 changelog:
   sort: asc
