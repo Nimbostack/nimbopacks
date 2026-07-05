@@ -1,0 +1,34 @@
+schema_version: "1"
+
+project:
+  name: java-webflux-sample
+  version: 0.0.1
+
+build:
+  pack: java
+  template: java-webflux
+  command: "mvn package -DskipTests"
+  dependencies:
+    - openjdk-21
+    - maven
+    - build-base
+  env:
+    JAR_DIR: target
+
+image:
+  entrypoint: /usr/lib/jvm/java-21-openjdk/bin/java
+  # spring-boot-maven-plugin repackages into a single executable jar named
+  # target/app.jar via <finalName>app</finalName>.
+  cmd: ["-jar", "/app/app.jar"]
+  packages:
+    - openjdk-21-jre
+    - ca-certificates-bundle
+  env:
+    JAVA_HOME: /usr/lib/jvm/java-21-openjdk
+    JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true
