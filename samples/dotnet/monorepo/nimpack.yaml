@@ -1,0 +1,51 @@
+schema_version: "1"
+
+project:
+  name: dotnet-solution-sample
+  version: 0.0.1
+
+# Monorepo build using the dotnet-solution template.
+#
+# `build.command` runs once before any artifact builds — restore the whole
+# solution so each `dotnet publish` below can hit a warm package cache.
+#
+# Each entry in `artifacts` publishes one project into the final image.
+# The first artifact's DLL is what `image.cmd` invokes; the others are along
+# for the ride (they can be exec'd separately, e.g. `docker run --entrypoint
+# dotnet image /app/worker/MyApp.Worker.dll`).
+
+build:
+  pack: dotnet
+  template: dotnet-solution
+  command: "dotnet restore MyApp.sln"
+  dependencies:
+    - dotnet-8-sdk
+    - build-base
+
+image:
+  entrypoint: dotnet
+  cmd: ["/app/api/MyApp.Api.dll"]
+  packages:
+    - dotnet-8-runtime
+    - aspnet-8-runtime
+    - ca-certificates-bundle
+    - icu-libs
+  env:
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "false"
+    ASPNETCORE_URLS: "http://+:8080"
+  run_as: 65532
+  ports:
+    - "8080"
+
+artifacts:
+  - name: api
+    source: src/MyApp.Api
+    command: "dotnet publish src/MyApp.Api -c Release -o /home/build/output/app/api --no-self-contained"
+    dest: /app/api
+  - name: worker
+    source: src/MyApp.Worker
+    command: "dotnet publish src/MyApp.Worker -c Release -o /home/build/output/app/worker --no-self-contained"
+    dest: /app/worker
+
+update:
+  auto_check: true

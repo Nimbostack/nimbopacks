@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>dotnet-blazor-sample</AssemblyName>
+    <!-- Without this the root namespace defaults to dotnet_blazor_sample
+         (dashes become underscores), which would not match the generated
+         razor components' DotnetBlazorSample namespace. -->
+    <RootNamespace>DotnetBlazorSample</RootNamespace>
+  </PropertyGroup>
+
+</Project>
