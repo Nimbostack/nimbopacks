@@ -1,0 +1,25 @@
+schema_version: "1"
+
+project:
+  name: go-rest-sample
+  version: 0.0.1
+
+build:
+  pack: golang
+  template: go
+  env:
+    CGO_ENABLED: "0"
+    GOFLAGS: "-trimpath"
+
+image:
+  entrypoint: /usr/bin/go-rest-sample
+  packages:
+    - ca-certificates-bundle
+  env:
+    PORT: "8080"
+  run_as: 65532
+  ports:
+    - "8080"
+
+update:
+  auto_check: true
