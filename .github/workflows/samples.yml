@@ -48,6 +48,9 @@ jobs:
           - node/hono
           - node/nestjs
           - node/nextjs
+          - php/laravel
+          - php/cake-php
+          - php/codeigniter
           - python/fastapi
           - python/django
           - web/static
