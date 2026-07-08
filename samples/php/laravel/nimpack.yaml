@@ -1,0 +1,74 @@
+schema_version: "1"
+
+project:
+  name: laravel-sample
+  version: 0.0.1
+  description: A sample Laravel application
+
+build:
+  pack: php
+  template: php-laravel
+  command: "composer install --no-dev --optimize-autoloader --ignore-platform-reqs"
+  env:
+    # Composer installs dependencies to vendor/.
+    COMPOSER_CACHE_DIR: /tmp/composer-cache
+  dependencies:
+  - php-8.4
+  - composer
+  - build-base
+  - php-8.4-openssl
+  - php-8.4-mbstring
+  - php-8.4-xml
+  - php-8.4-dom
+  - php-8.4-curl
+  - php-8.4-ctype
+  - php-8.4-fileinfo
+  - php-8.4-intl
+  - php-8.4-zip
+  - php-8.4-bcmath
+  - php-8.4-gd
+  - php-8.4-pdo
+  - php-8.4-pdo_mysql
+  - php-8.4-mysqlnd
+  - php-8.4-pdo_sqlite
+  - php-8.4-pdo_pgsql
+
+image:
+  entrypoint: php
+  cmd: [ "-S", "0.0.0.0:8080", "-t", "/app/public" ]
+  packages:
+  - php-8.4
+  - php-8.4-openssl
+  - php-8.4-mbstring
+  - php-8.4-xml
+  - php-8.4-dom
+  - php-8.4-curl
+  - php-8.4-ctype
+  - php-8.4-fileinfo
+  - php-8.4-intl
+  - php-8.4-zip
+  - php-8.4-bcmath
+  - php-8.4-gd
+  - php-8.4-pdo
+  - php-8.4-pdo_mysql
+  - php-8.4-mysqlnd
+  - php-8.4-pdo_sqlite
+  - php-8.4-pdo_pgsql
+  - ca-certificates-bundle
+  env:
+    # No APP_KEY here — the php pack generates one fresh at build time and
+    # writes it into the image's .env, so no secret is ever committed.
+    APP_ENV: production
+    LOG_CHANNEL: stderr
+    # No database in this sample — session/cache/queue all default to a
+    # "database" driver Laravel would otherwise use, which needs a table
+    # that doesn't exist here since no migrations run.
+    SESSION_DRIVER: file
+    CACHE_STORE: file
+    QUEUE_CONNECTION: sync
+  run_as: 65532
+  ports:
+  - "8080"
+
+update:
+  auto_check: true

@@ -1,0 +1,58 @@
+schema_version: "1"
+
+project:
+  name: cake-php-sample
+  version: 0.0.1
+
+build:
+  pack: php
+  template: php-cakephp
+  command: "composer install --no-dev --optimize-autoloader --ignore-platform-reqs"
+  env:
+    # Composer installs dependencies to vendor/.
+    COMPOSER_CACHE_DIR: /tmp/composer-cache
+  dependencies:
+  - php-8.4
+  - composer
+  - build-base
+  - php-8.4-openssl
+  - php-8.4-mbstring
+  - php-8.4-xml
+  - php-8.4-dom
+  - php-8.4-curl
+  - php-8.4-ctype
+  - php-8.4-fileinfo
+  - php-8.4-intl
+  - php-8.4-pdo
+  - php-8.4-pdo_mysql
+  - php-8.4-mysqlnd
+  - php-8.4-pdo_sqlite
+  - php-8.4-pdo_pgsql
+
+image:
+  entrypoint: php
+  cmd: [ "-S", "0.0.0.0:8080", "-t", "/app/webroot" ]
+  packages:
+  - php-8.4
+  - php-8.4-openssl
+  - php-8.4-mbstring
+  - php-8.4-xml
+  - php-8.4-dom
+  - php-8.4-curl
+  - php-8.4-ctype
+  - php-8.4-fileinfo
+  - php-8.4-intl
+  - php-8.4-pdo
+  - php-8.4-pdo_mysql
+  - php-8.4-mysqlnd
+  - php-8.4-pdo_sqlite
+  - php-8.4-pdo_pgsql
+  - ca-certificates-bundle
+  env:
+    DEBUG: "false"
+  run_as: 65532
+  ports:
+  - "8080"
+
+update:
+  auto_check: true
