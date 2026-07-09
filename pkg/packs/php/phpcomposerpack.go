@@ -1,3 +1,4 @@
+// Package phppack is the nimbopacks pack for PHP/Composer projects.
 package phppack
 
 import (
@@ -37,14 +38,48 @@ var runtimeExtensions = []string{
 	"php-8.4-pdo_pgsql",
 }
 
+// documentRoot and env mirror what each framework's own template
+// (pkg/templates/templates/php/php-*.yaml) sets, so a config generated via
+// Detect() behaves the same as one scaffolded from the matching template.
+func documentRoot(tmpl string) string {
+	switch tmpl {
+	case "php-cakephp":
+		return "/app/webroot"
+	case "php-composer":
+		return "/app"
+	default: // php-laravel, php-codeigniter
+		return "/app/public"
+	}
+}
+
+func frameworkEnv(tmpl string) map[string]string {
+	switch tmpl {
+	case "php-laravel":
+		return map[string]string{
+			"APP_ENV":          "production",
+			"LOG_CHANNEL":      "stderr",
+			"SESSION_DRIVER":   "file",
+			"CACHE_STORE":      "file",
+			"QUEUE_CONNECTION": "sync",
+		}
+	case "php-cakephp":
+		return map[string]string{"DEBUG": "false"}
+	case "php-codeigniter":
+		return map[string]string{"CI_ENVIRONMENT": "production"}
+	default:
+		return map[string]string{}
+	}
+}
+
 func (p *Pack) GenerateConfig(_ context.Context, _ string, _ *types.DetectResult, tmpl string) (*types.NimpackConfig, error) {
 	cfg := pack.BaseConfig("app", "0.0.1", p.Name(), tmpl)
 	cfg.Build.Command = "composer install --no-dev --optimize-autoloader --ignore-platform-reqs"
 	cfg.Build.Dependencies = append([]string{"php-8.4", "composer", "build-base"}, runtimeExtensions...)
-	cfg.Build.Env = map[string]string{"COMPOSER_CACHE_DIR": "/tmp/composer_cache"}
+	cfg.Build.Env = map[string]string{"COMPOSER_CACHE_DIR": "/tmp/composer-cache"}
 	cfg.Image.Packages = append([]string{"php-8.4", "ca-certificates-bundle"}, runtimeExtensions...)
 	cfg.Image.Entrypoint = "php"
-	cfg.Image.Cmd = []string{"-S", "0.0.0.0:8080", "-t", "/app/public"}
+	cfg.Image.Cmd = []string{"-S", "0.0.0.0:8080", "-t", documentRoot(tmpl)}
+	cfg.Image.Env = frameworkEnv(tmpl)
 	return &cfg, nil
 }
 
