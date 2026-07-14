@@ -313,6 +313,21 @@ type ghAsset struct {
 	BrowserDownloadURL string `json:"browser_download_url"`
 }
 
+// setGitHubAuth attaches a token to GitHub API requests when one is
+// available (GITHUB_TOKEN, e.g. from GitHub Actions, or GH_TOKEN as used by
+// gh/gh-cli). Unauthenticated requests are capped at 60/hour per IP, which
+// CI matrix jobs blow through in minutes and get 401/403s back; an
+// authenticated request raises that to 5000/hour.
+func setGitHubAuth(req *http.Request) {
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		token = os.Getenv("GH_TOKEN")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+}
+
 func getLatestRelease(ctx context.Context, repo string) (string, error) {
 	url := fmt.Sprintf("%s/%s/releases/latest", githubAPI, repo)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -320,6 +335,7 @@ func getLatestRelease(ctx context.Context, repo string) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
+	setGitHubAuth(req)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -358,6 +374,7 @@ func downloadRelease(ctx context.Context, repo, version, toolName, destDir strin
 		return err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
+	setGitHubAuth(req)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

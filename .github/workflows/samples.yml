@@ -1,9 +1,5 @@
 name: Samples
 
-# Build each sample and run the resulting image to prove it actually works.
-# This is heavier than the unit-test CI (it runs melange + apko + Docker), so it
-# only triggers when sample/pack/backend code changes, on manual dispatch, and
-# weekly (to catch drift in the rolling Wolfi package set).
 on:
   pull_request:
     paths:
@@ -18,45 +14,49 @@ on:
   schedule:
     - cron: '0 6 * * 1' # Mondays 06:00 UTC
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Determine affected samples
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.compute.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+      - name: Compute affected samples
+        id: compute
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            matrix="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | ./samples/affected-samples.sh)"
+          else
+            # workflow_dispatch / schedule: always verify everything, to
+            # catch drift in the rolling Wolfi package set.
+            matrix="$(./samples/affected-samples.sh </dev/null)"
+          fi
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "Affected samples: $matrix"
+
   verify:
     name: ${{ matrix.sample }}
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        sample:
-          - go/rest
-          - go/grpc
-          - dotnet/minimal-api
-          - dotnet/webapi
-          - dotnet/monorepo
-          - dotnet/grpc
-          - dotnet/blazor
-          - dotnet/worker
-          - java/maven
-          - java/gradle
-          - java/micronaut
-          - java/quarkus
-          - java/webflux
-          - node/express
-          - node/fastify
-          - node/hono
-          - node/nestjs
-          - node/nextjs
-          - python/fastapi
-          - python/django
-          - web/static
-          - web/spa
-          - web/hugo
-          - web/custom-nginx
-          - showcase/layering
-          - showcase/custom-ca-certs
-          - showcase/cve-patching
+        sample: ${{ fromJSON(needs.changes.outputs.matrix) }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-go@v5
@@ -71,6 +71,12 @@ jobs:
       - name: Build nimbopacks
         run: go build -o bin/nimbopacks ./cmd/nimbopacks
       - name: Install toolchain (melange + apko + grype)
+        env:
+          # Authenticates GitHub API calls in internal/toolchain so the
+          # 60/hour unauthenticated rate limit isn't shared across every
+          # matrix job hitting api.github.com at once (that's what was
+          # producing the 401s).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./bin/nimbopacks toolchain install
       - name: Verify sample
         env:
