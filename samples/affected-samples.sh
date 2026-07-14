@@ -71,7 +71,12 @@ while IFS= read -r f; do
   case "$f" in
     samples/*/*)
       rest="${f#samples/}"
-      selected+=("$(cut -d/ -f1,2 <<<"$rest")")
+      candidate="$(cut -d/ -f1,2 <<<"$rest")"
+      # Only a real, still-present sample (has nimpack.yaml) counts — this
+      # skips deleted samples and non-sample paths like samples/go/README.md.
+      if [[ -f "$repo_root/samples/$candidate/nimpack.yaml" ]]; then
+        selected+=("$candidate")
+      fi
       continue
       ;;
   esac
