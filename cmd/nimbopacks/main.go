@@ -9,17 +9,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
 	// Packs
-	_ "github.com/Nimbostack/nimbopacks/pkg/packs/dotnet"
-	_ "github.com/Nimbostack/nimbopacks/pkg/packs/golang"
-	_ "github.com/Nimbostack/nimbopacks/pkg/packs/java"
-	_ "github.com/Nimbostack/nimbopacks/pkg/packs/node"
-	_ "github.com/Nimbostack/nimbopacks/pkg/packs/python"
-	_ "github.com/Nimbostack/nimbopacks/pkg/packs/webserver"
-
 	// Backends
-	_ "github.com/Nimbostack/nimbopacks/pkg/backend/wolfi"
+
+	"github.com/spf13/cobra"
 
 	"github.com/Nimbostack/nimbopacks/internal/cache"
 	"github.com/Nimbostack/nimbopacks/internal/pack/registry"
@@ -27,8 +20,15 @@ import (
 	"github.com/Nimbostack/nimbopacks/internal/toolchain"
 	"github.com/Nimbostack/nimbopacks/internal/update"
 	"github.com/Nimbostack/nimbopacks/pkg/backend"
+	_ "github.com/Nimbostack/nimbopacks/pkg/backend/wolfi"
+	_ "github.com/Nimbostack/nimbopacks/pkg/packs/dotnet"
+	_ "github.com/Nimbostack/nimbopacks/pkg/packs/golang"
+	_ "github.com/Nimbostack/nimbopacks/pkg/packs/java"
+	_ "github.com/Nimbostack/nimbopacks/pkg/packs/node"
+	_ "github.com/Nimbostack/nimbopacks/pkg/packs/php"
+	_ "github.com/Nimbostack/nimbopacks/pkg/packs/python"
+	_ "github.com/Nimbostack/nimbopacks/pkg/packs/webserver"
 	"github.com/Nimbostack/nimbopacks/pkg/templates"
-	"github.com/spf13/cobra"
 )
 
 // errCVEThreshold is returned by updateCmd when --check mode finds CVEs at or above the threshold.

@@ -1,0 +1,69 @@
+# Template: php-cakephp
+# Pack: php
+# Description: PHP CakePHP application
+# Tags: php, cakephp
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: php
+  template: php-cakephp
+  command: "composer install --no-dev --optimize-autoloader --ignore-platform-reqs"
+  env:
+    COMPOSER_CACHE_DIR: /tmp/composer-cache
+  dependencies:
+  - php-8.4
+  - composer
+  - build-base
+  - php-8.4-openssl
+  - php-8.4-mbstring
+  - php-8.4-xml
+  - php-8.4-dom
+  - php-8.4-curl
+  - php-8.4-ctype
+  - php-8.4-fileinfo
+  - php-8.4-intl
+  - php-8.4-zip
+  - php-8.4-bcmath
+  - php-8.4-gd
+  - php-8.4-pdo
+  - php-8.4-pdo_mysql
+  - php-8.4-mysqlnd
+  - php-8.4-pdo_sqlite
+  - php-8.4-pdo_pgsql
+
+image:
+  entrypoint: php
+  cmd: [ "-S", "0.0.0.0:8000", "-t", "/app/webroot" ]
+  packages:
+  - ca-certificates-bundle
+  - php-8.4
+  - php-8.4-openssl
+  - php-8.4-mbstring
+  - php-8.4-xml
+  - php-8.4-dom
+  - php-8.4-curl
+  - php-8.4-ctype
+  - php-8.4-fileinfo
+  - php-8.4-intl
+  - php-8.4-zip
+  - php-8.4-bcmath
+  - php-8.4-gd
+  - php-8.4-pdo
+  - php-8.4-pdo_mysql
+  - php-8.4-mysqlnd
+  - php-8.4-pdo_sqlite
+  - php-8.4-pdo_pgsql
+  ports:
+  - "8000"
+  env:
+    APP_ENV: production
+    DEBUG: "false"
+  run_as: 65532
+
+update:
+  auto_check: true

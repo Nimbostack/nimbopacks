@@ -1,0 +1,48 @@
+# Template: php-composer
+# Pack: php
+# Description: Generic PHP/Composer application
+# Tags: php, composer
+---
+schema_version: "1"
+
+project:
+  name: {{ .ProjectName }}
+  version: {{ .Version }}
+
+build:
+  pack: php
+  template: php-composer
+  command: "composer install --no-dev --optimize-autoloader --ignore-platform-reqs"
+  env:
+    COMPOSER_CACHE_DIR: /tmp/composer-cache
+  dependencies:
+  - php-8.4
+  - composer
+  - build-base
+  - php-8.4-openssl
+  - php-8.4-mbstring
+  - php-8.4-xml
+  - php-8.4-dom
+  - php-8.4-curl
+  - php-8.4-ctype
+  - php-8.4-fileinfo
+
+image:
+  entrypoint: php
+  cmd: [ "-S", "0.0.0.0:8000", "-t", "/app" ]
+  packages:
+  - ca-certificates-bundle
+  - php-8.4
+  - php-8.4-openssl
+  - php-8.4-mbstring
+  - php-8.4-xml
+  - php-8.4-dom
+  - php-8.4-curl
+  - php-8.4-ctype
+  - php-8.4-fileinfo
+  ports:
+  - "8000"
+  run_as: 65532
+
+update:
+  auto_check: true
