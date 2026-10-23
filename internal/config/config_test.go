@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"os"
 	"reflect"
 	"testing"
@@ -134,11 +133,11 @@ image:
 	}
 
 	p := &golangpack.Pack{}
-	planWith, err := p.Plan(context.Background(), dir, cfgWith)
+	planWith, err := p.Plan(t.Context(), dir, cfgWith)
 	if err != nil {
 		t.Fatalf("planning config with dead fields: %v", err)
 	}
-	planWithout, err := p.Plan(context.Background(), dir, cfgWithout)
+	planWithout, err := p.Plan(t.Context(), dir, cfgWithout)
 	if err != nil {
 		t.Fatalf("planning config without dead fields: %v", err)
 	}
