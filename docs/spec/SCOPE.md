@@ -14,12 +14,12 @@ inventory and gap report that decides what the specification can safely freeze.
 
 | Question | Answer |
 |---|---|
-| Addressable keys in the `nimpack.yaml` surface | **33** (across 7 structs; excludes the 5 container blocks) |
-| Keys with a test that asserts a downstream effect | **7 of 33** (21%) |
-| Keys merely parsed or set by a test, no behavioural assertion | **8 of 33** |
-| Keys with no test touching them at all | **18 of 33** (55%) |
+| Addressable keys in the `nimpack.yaml` surface | **38** total — **31 leaf keys** plus 7 block keys (`project`, `build`, `image`, `image.layering`, `artifacts`, `update`, `tls`). All counts below are over the 31 leaf keys. |
+| Keys with a test that asserts a downstream effect | **7 of 31** (23%) |
+| Keys merely parsed or set by a test, no behavioural assertion | **7 of 31** |
+| Keys with no test touching them at all | **17 of 31** (55%) |
 | Keys **never read by any production code** | **6** — `build.context`, `build.template`, `image.labels`, `image.ports`, `update.auto_check`, `update.repositories` — **plus `schema_version` itself** |
-| Fields whose documented meaning does not match the implementation | **5** — `build.env`, `artifacts[].name`, `artifacts[].dest`, `update.pinned`, `image.layering` |
+| Fields whose documented meaning does not match the implementation | **7** — `build.template`, `build.env`, `image.layering` (absent-case default), `artifacts[].name`, `artifacts[].dest`, `update.auto_check` (default), `update.pinned`; plus `tls.ca_cert_paths` (§3 secondary) |
 | `schema_version` validation in the loader | **None.** The field is written by `BaseConfig` and all 23 templates and never read. |
 | Blocking ambiguities to resolve before freeze | **14** (§3) |
 | Estimated effort for spec + JSON Schema | **6.5 engineer-days**, of which 2.0 are decisions that need CTO/Engineering Lead input (§5) |
@@ -331,3 +331,62 @@ blessing decoration.
   in `CLAUDE.md`; §3 flags two implementation gaps against it (`pinned`,
   unrecognised `--fail-on`).
 - `pkg/backend` interface guarantees — ADR-0001.
+
+---
+
+## 7. Verification record
+
+Every "never read" and "does not match the implementation" claim above was
+re-checked against the working tree at `3f962f6` before this report was signed
+off. Reproduce with:
+
+```bash
+# The six dead fields + schema_version: no production reader.
+for f in SchemaVersion Context Template Labels Ports AutoCheck Repositories; do
+  grep -rn "\.$f\b" --include='*.go' . | grep -v _test.go | grep -v internal/types/types.go
+done
+# image.ports: written by two packs, read by none.
+grep -rn 'Image\.Ports' --include='*.go' .
+# image.cmd: no reader in the go pack.
+grep -rn 'Image\.Cmd' --include='*.go' pkg/packs/golang/
+# 22 of 23 shipped templates emit image.ports.
+ls pkg/templates/templates/*/*.yaml | wc -l
+grep -l 'ports:' pkg/templates/templates/*/*.yaml | wc -l
+```
+
+Caveats on the grep method: `grep '\.Context\b'` also matches `context.Context`
+in every function signature, and `grep '\.Repositories\b'` also matches
+`ApkoContents.Repositories` (`wolfi.go:143`), which is a different struct. Both
+were filtered by hand. After filtering, `BuildConfig.Context` and
+`UpdateConfig.Repositories` have **zero** readers.
+
+Confirmed directly in source, not inferred:
+
+- `internal/config/config.go:18` — `Validate` enforces exactly three fields:
+  `project.name`, `project.version`, `build.pack`. `schema_version` is not among them.
+- `internal/config/config.go:46` — `yaml.Unmarshal` with no `KnownFields`, so
+  unknown keys are silently dropped.
+- `internal/pack/pack.go:177` — `if cfg.Image.RunAs != 0`, which is what makes
+  `run_as: 0` unrepresentable.
+- `pkg/packs/golang/golangpack.go:149` — the go pack builds its apko config from
+  `Entrypoint`, `Packages`, and `Env` only; `cfg.Image.Cmd` is never read.
+- `internal/update/update.go:180` — `severityRank` returns `-1` from its
+  `default` branch, and `MeetsThreshold` (`:217`) compares `>= threshold`, so an
+  unrecognised `--fail-on` matches every finding. `MeetsThreshold` does not
+  consult `PackageUpdate.Pinned` at all; `pinned` only reaches the report
+  (`update.go:80`) and the text formatter (`cmd/nimbopacks/main.go:633`).
+
+Coverage measured this run with `go test -cover ./...`:
+
+| Package | Coverage |
+|---|---|
+| `internal/types` | **0.0%** |
+| `internal/pack` | **0.0%** — this is where `ApplyConfig` lives, the function that implements override semantics for six schema fields |
+| `internal/config` | 45.0% |
+| `internal/pipeline` | 34.0% |
+| `pkg/backend/wolfi` | 16.2% |
+
+The pack packages are well covered (86–100%), which is why seven fields reach ✅
+and seven reach ⚠️: the assertions exist, but they live in pack tests and test
+the pack's behaviour, not the schema's contract. Nothing pins a default or a
+zero-value meaning. That is the gap workstream 4 in §5 closes.
