@@ -178,6 +178,12 @@ func ApplyConfig(plan *types.BuildPlan, cfg *types.NimpackConfig) {
 		plan.Apko.Accounts.RunAs = fmt.Sprintf("%d", cfg.Image.RunAs)
 	}
 	maps.Copy(plan.Apko.Environment, cfg.Image.Env)
+	if len(cfg.Image.Labels) > 0 {
+		if plan.Apko.Annotations == nil {
+			plan.Apko.Annotations = make(map[string]string, len(cfg.Image.Labels))
+		}
+		maps.Copy(plan.Apko.Annotations, cfg.Image.Labels)
+	}
 }
 
 // InstallOutputStep returns the final melange pipeline step that copies the

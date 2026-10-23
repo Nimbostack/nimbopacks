@@ -292,6 +292,10 @@ type ApkoConfig struct {
 	Accounts    ApkoAccounts      `yaml:"accounts"`
 	Environment map[string]string `yaml:"environment,omitempty"`
 	Layering    *LayeringConfig   `yaml:"layering,omitempty"`
+
+	// Annotations are OCI annotations, sourced from image.labels. apko applies
+	// them both at the manifest/index level and as image-config labels.
+	Annotations map[string]string `yaml:"annotations,omitempty"`
 }
 
 type ApkoContents struct {
