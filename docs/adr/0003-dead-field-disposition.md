@@ -1,11 +1,13 @@
 # 0003. Disposition the seven parsed-and-ignored `nimpack.yaml` fields before the v1 freeze
 
-- **Status:** Proposed — architect calls decided, product calls pending sign-off
-- **Date:** 2026-10-23
-- **Deciders:** Principal Architect (A1, A6, A7); CTO / Board (A2, A3, A4, A5, and the two adjacent calls A8, A14)
+- **Status:** Accepted — 2026-10-23
+- **Date:** 2026-10-23 (revised same day after the NIMA-11 build-environment verification)
+- **Deciders:** Principal Architect (A1, A6, A7); CTO (A2, A3, A4, A5, and the two adjacent calls A8, A14)
 - **Affects:** `internal/types/types.go`, `internal/config/config.go`, `internal/pack/pack.go`,
+  `pkg/packs/dotnet/dotnetpack.go`, `pkg/packs/webserver/webserverpack.go`,
   `pkg/templates/templates/**` (23 files), `samples/**/nimpack.yaml` (27 files),
   `docs/spec/nimpack-v1.md` (unwritten), `docs/spec/nimpack.schema.json` (unwritten)
+- **Informed by:** NIMA-11 build-environment verification (apko v1.4.12, melange v0.63.1)
 - **Supersedes nothing. Gates:** the normative v1 spec text (workstream 2 of `docs/spec/SCOPE.md` §5)
 
 ---
@@ -81,18 +83,26 @@ single biggest input to the five deletions/implementations below.
 ## Decision
 
 One disposition per field. `Implement` = wire it to real behaviour before the freeze.
-`Delete` = remove the `yaml:` tag and the Go field. `Reserve` = normative text says the
-field is accepted and has no effect on the build; the JSON Schema accepts it.
+`Delete` = remove the `yaml:` tag and the Go field. `Reserve` = the JSON Schema accepts
+the field and the normative text states exactly when it has no effect — either *never*
+(A7, inert by definition) or *under a backend that cannot express it* (A4). A Reserved
+field is never silently inert: the loader or the backend says so on stderr.
 
 | # | Field | Disposition | Digest impact | `schema_version` consequence | Decided by |
 |---|---|---|---|---|---|
-| A1 | `schema_version` | **Implement** (validate, warn-then-error ramp) | **None** — validation only, no plan change | Stays `"1"`. Ramp designed so no config that loads today stops loading. | Principal Architect — **decided** |
-| A4 | `image.ports` | **Implement** as OCI `config.ExposedPorts` | **Changes** for 26 of 27 samples and any config from 22 of 23 templates | **None if merged before the freeze.** After the freeze it costs a bump. | CTO / Board — **pending** |
-| A3 | `image.labels` | **Implement** as OCI annotations | **Changes** only for configs that set it — zero shipped templates, zero shipped samples | None. Schema field already exists; this is a backend addition. | CTO / Board — **pending** |
-| A7 | `build.template` | **Reserve** (informational provenance, normatively non-behavioural) | **None**, now or ever — the spec forbids it from reaching the plan | None | Principal Architect — **decided** |
-| A2 | `build.context` | **Delete** | **None** — no reader, no shipped writer | None under the leniency corollary | CTO / Board — **pending** |
-| A5 | `update.auto_check` | **Delete** | **None** — no reader | None under the leniency corollary. Requires regenerating 23 templates + 27 samples. | CTO / Board — **pending** |
-| A6 | `update.repositories` | **Delete** | **None** — no reader, no shipped writer | None under the leniency corollary | Principal Architect — **decided** |
+| A1 | `schema_version` | **Implement** (validate, warn-then-error ramp) | **None** — validation only, no plan change | Stays `"1"`. Ramp designed so no config that loads today stops loading. | Principal Architect, 2026-10-23 |
+| A3 | `image.labels` | **Implement** — maps 1:1 onto apko's `annotations:` key | **Changes** only for configs that set it — zero shipped templates, zero shipped samples | None. Schema field already exists; this is a backend addition. | CTO, 2026-10-23 |
+| A4 | `image.ports` | **Reserve** — declarative intent, emitted only by backends that can express it; wolfi cannot. Strip from all 23 templates and both packs. | **None.** apko has no input path to `ExposedPorts`, so nothing can change. | None | CTO, 2026-10-23 (stated fallback; the condition fired) |
+| A7 | `build.template` | **Reserve** (informational provenance, normatively non-behavioural) | **None**, now or ever — the spec forbids it from reaching the plan | None | Principal Architect, 2026-10-23 |
+| A2 | `build.context` | **Delete** | **None** — no reader, no shipped writer | None under the leniency corollary | CTO, 2026-10-23 |
+| A5 | `update.auto_check` | **Delete** | **None** — no reader | None under the leniency corollary. Requires regenerating 23 templates + 27 samples. | CTO, 2026-10-23 |
+| A6 | `update.repositories` | **Delete** | **None** — no reader, no shipped writer | None under the leniency corollary | Principal Architect, 2026-10-23 |
+
+**Net effect on the freeze: zero digest movement.** The verification in NIMA-11 removed
+the one disposition that would have changed digests (A4), and A3 — the only remaining
+`Implement` with any digest reach — is set by no shipped template and no shipped sample.
+Every image nimbopacks builds today keeps its digest across this ADR. That was not true of
+the draft, and it is the single most consequential thing the verification bought.
 
 ### A1 — `schema_version`: Implement, with a warn-then-error ramp
 
@@ -121,47 +131,99 @@ error; unparseable → error. Unknown keys stay a warning permanently.
 warns on its absence. "Required by the spec, warned by the loader" is a deliberate and
 stateable position; silently accepting absence forever is not.
 
-### A4 — `image.ports`: Implement as OCI `config.ExposedPorts`
-
-This is the highest-exposure item in the report: 22 of 23 templates and 26 of 27 samples
-write it, two packs generate it, and nothing reads it. A user reading a nimbopacks-generated
-`nimpack.yaml` will read `ports: ["8080"]` as `EXPOSE 8080`. Today it means nothing.
-
-Implement it as OCI image-config `ExposedPorts`. Normative value format: `"<port>"` or
-`"<port>/<tcp|udp>"`; bare port defaults to `tcp`; the emitted set MUST be sorted so the
-digest does not depend on YAML sequence order beyond the user's own ordering.
-
-This is the only disposition in this ADR that changes an image digest, and it changes it
-for almost every image anyone has built with a template. That is precisely why it must
-land **before** the freeze: the digest change is unavoidable in any future where the field
-means what users already think it means, and the pre-freeze window is the only time it
-does not also cost a `schema_version` bump and a migration note.
-
-**Blocked on one verification (see Open items):** whether the pinned apko (v0.27.0 line)
-can express exposed ports in its image configuration. apko is a downloaded binary, not a
-Go dependency, so its schema cannot be inspected from this checkout and there is no Docker
-here. If apko cannot express it, this disposition falls back to **Delete** — which costs
-edits to 22 templates and 26 samples — and `Reserve` remains rejected either way.
-
-### A3 — `image.labels`: Implement as OCI annotations
+### A3 — `image.labels`: Implement, mapped onto apko's `annotations:`
 
 `ApkoConfig` (`types.go:285`) has no annotations field, so this is a backend change rather
 than a schema change — the schema field already exists and is already the right shape.
+
+**Verified (NIMA-11).** `annotations:` is a real top-level key in the pinned apko's
+`ImageConfiguration` (apko v1.4.12). A trial build setting
+`org.opencontainers.image.source` and `.description` produced **both** OCI
+index/manifest-level `annotations` and image-config `config.Labels` carrying the same
+pairs. So the implementation is a one-field mapping:
+
+```go
+// internal/types/types.go — ApkoConfig
+Annotations map[string]string `yaml:"annotations,omitempty"`
+```
+
+copied from `cfg.Image.Labels` in `pack.ApplyConfig` (`internal/pack/pack.go:156`). No
+further backend work, no post-processing of the OCI config.
 
 Implement it because an enterprise-trustworthy 1.0 that cannot set
 `org.opencontainers.image.source`, `.revision`, `.licenses` or `.created` has a real
 supply-chain attribution gap. Those annotations are how a consumer traces an image back
 to its source, and they are exactly what the Chainguard / distroless / Docker Hardened
-Images comparison set already emit.
+Images comparison set already emit. The conformance target named on NIMA-15
+(`Nimbostack/blockstax-containers`) sets **9 to 11** OCI annotations on each of its four
+images; without A3, that target can never be expressed in `nimpack.yaml`, which is a
+sharper argument than the general one and is why this is the one `Implement` left standing.
+
+Normative shape: keys MUST be emitted in sorted order so the digest does not depend on Go
+map iteration order — the reproducibility lens applies here directly, and a `map` is
+exactly the construct that violates it if emitted naively.
 
 Digest impact is near-zero in practice: no shipped template and no shipped sample sets
 `labels`, so no existing build changes. Any config that *does* set it today is getting a
 silently-ignored key, and the field going live is the fix, not the regression.
 
-Same apko-capability caveat as A4. The fallback if apko cannot express annotations is
-**not** Delete — it is to carry the field as Reserved and open a separate issue against
-the backend, because the requirement is real even if today's backend cannot meet it. That
-asymmetry with A4 is deliberate: `ports` is convenience metadata, attribution is not.
+### A4 — `image.ports`: Reserve as declarative intent; strip from templates and packs
+
+This was the highest-exposure item in the report: 22 of 23 templates and 26 of 27 samples
+write it, two packs generate it, and nothing reads it. The draft of this ADR said
+*Implement as OCI `config.ExposedPorts`*, conditional on apko being able to express it.
+
+**Verified (NIMA-11): it cannot.** The full top-level `yaml:` tag inventory extracted from
+the pinned apko binary (v1.4.12) contains no `ports`, `exposed-ports`, `expose` or any
+equivalent. The `ExposedPorts` symbol present in the binary belongs to the *output*
+`go-containerregistry` `v1.Config` struct — the OCI config apko writes — and apko has no
+input path that populates it. It is always empty.
+
+The CTO's standing condition therefore fires: *"If apko's `ImageConfiguration` has no
+exposed-ports key, implementing means post-processing the OCI config — do not do that for
+v1. In that case fall back to Reserve, and strip `image.ports` from all 23 templates in
+the same PR."* That is the disposition.
+
+**Why Reserve and not Delete**, given this ADR's own bias toward deletion and the CTO's
+rule that a field must either do something or not exist: deleting `image.ports` would mean
+removing a near-universal container concept from a deliberately backend-agnostic schema
+*because the one backend we happen to ship cannot express it*. That is the hexagonal leak
+this project exists to avoid, running in the opposite direction — an adapter limitation
+reaching back into the domain. `CLAUDE.md`: *"No Wolfi/Chainguard lock-in leaks outside
+`pkg/backend/wolfi/`."* A BuildKit or Dockerfile-shaped second backend emits `EXPOSE` in
+one line; a schema that cannot say "this service listens on 8080" would be strictly less
+implementable than a Dockerfile, and `nimpack.yaml` is meant to be an implementable spec,
+not this tool's config file.
+
+So the normative text is conditional, not a no-op:
+
+> `image.ports` declares the ports the containerised workload listens on. An
+> implementation MUST emit them as exposed-port metadata **where the target image format
+> and build backend support it**, and MUST otherwise ignore them. Declared ports MUST NOT
+> affect any other part of the build. The `wolfi` backend in v1 does not support
+> exposed-port metadata and MUST warn on stderr, once per build, that it is ignoring a
+> declared `image.ports`.
+
+The warning rides the same stderr diagnostic channel A1 introduces for unknown keys; it
+is not a new mechanism, and it is what keeps this from being a silent no-op.
+
+This is the "say plainly that it documents intent and produces no image metadata" the CTO
+asked for after the Blockstax review, with the backend-capability clause added so the
+field is not frozen as permanently inert.
+
+**Strip it from the generators anyway.** 22 templates, 26 samples, `dotnetpack.go:188` and
+`webserverpack.go:133` stop writing it. Nimbopacks must not generate, into a user's config,
+a key that the backend it is about to invoke will ignore — that is the "we wrote it, so
+users believe it" problem the CTO named, and the fix is to stop writing it rather than to
+stop having it. A user who writes `ports:` by hand has made a choice; a user who finds it
+pre-filled has been told something false. Digest impact of the strip: **none** — no reader,
+so no plan changes.
+
+One discipline this buys: `image.ports` is now the worked example for the first
+**backend-capability gap** in the spec. The v1 text needs a general mechanism for "field X
+is unsupported by backend Y" regardless, because a second backend will produce more of
+them in the other direction, and it is better to design that mechanism against a field
+that costs nothing than against one that does.
 
 ### A7 — `build.template`: Reserve as informational provenance
 
@@ -247,26 +309,68 @@ These two are **not** dead fields — both are read by production code — so th
 this ADR's normative scope. They are the other two of the six calls `docs/spec/SCOPE.md` §3
 marks **D**, and batching them into one sign-off round avoids a second one.
 
-**A8 — `build.env` (`types.go:94`).** Documented as build environment variables; implemented
-as a per-pack keyword channel (`ENTRYPOINT` for go, `JAR_DIR` for java,
-`OUTPUT_DIR`/`NGINX_CONF_PATH` for webserver). Unknown keys are silently discarded.
-*Recommendation:* fix the documentation to describe the keyword channel, and add a warning
-for unrecognised keys. Do **not** implement it as real melange environment variables in v1 —
-that changes the digest of every config that sets it *and* collides with the keyword names
-already in use, so there is no safe migration. A real build-env channel should be a new,
-separately-named field.
+**A8 — `build.env` (`types.go:94`). Decided: CTO, 2026-10-23 — rename to `build.options`.**
+Documented as build environment variables; implemented as a per-pack keyword channel
+(`ENTRYPOINT` for go, `JAR_DIR` for java, `OUTPUT_DIR`/`NGINX_CONF_PATH` for webserver).
+Unknown keys are silently discarded. The decision: rename the field to `build.options`,
+narrow the documentation to describe the keyword channel it actually is, warn on
+unrecognised keys, and keep `build.env` as a **deprecated alias** accepted throughout v1.
+Digest impact: **none**, provided the recognised keyword set is unchanged.
 
-**A14 — `update.pinned` (`types.go:201`, `update.go:217`).** The comment says pinned packages
-"won't be updated automatically"; the implementation only tags the report and
-`MeetsThreshold` ignores `Pinned` entirely, so a pinned package still fails `update --check`.
-*Recommendation:* document the current behaviour (annotation only) and do **not** change
-`MeetsThreshold`. Making `pinned` suppress a finding would change `update --check` exit
-codes for existing configs, and exit codes are a public contract (`CLAUDE.md`: `0` clean,
-`1` CVEs at or above threshold, `2` tool/config error). Suppression is grype's job via
-`.grype.yaml`, per the standing "CVE policy is grype's" invariant.
+The rename is a type-design fix, not cosmetics: the current name is the reason nobody
+noticed that `MelangeEnvironment` (`types.go:267`) has only `Contents` and therefore has
+nowhere to put an environment variable even if we wanted to.
 
-If the decision on A14 is anything other than "document current behaviour", it needs its
-own ADR, because it then modifies a public contract.
+*Carried open — A8b.* The NIMA-15 Blockstax review found the conformance target needs
+**real** build-time environment variables (`GOMODCACHE: /var/cache/melange`), which
+`build.options` by construction will not provide. The CTO's A8 ruling explicitly says not
+to turn `build.env` into real melange env; that ruling and the Blockstax requirement are
+compatible, because the answer is a *new* field rather than a reinterpreted one:
+
+- add `Environment map[string]string` to `types.MelangeEnvironment`, mirroring melange's
+  own `environment.environment` block;
+- surface it as a new `build.environment` key with no default, so an absent key emits
+  nothing and no existing digest moves;
+- keep it strictly disjoint from `build.options`, so the two can never disagree.
+
+This is additive and non-breaking (§4.2: a new optional key whose zero value preserves
+current behaviour), but it is a new public schema field, so it needs its own issue and an
+ADR note before the freeze. It is **not** decided here.
+
+**A14 — `update.pinned` (`types.go:201`, `update.go:218`). Decided: CTO, 2026-10-23 — fix
+the code to match the comment.** The comment says pinned packages "won't be updated
+automatically"; `MeetsThreshold` ignores `Pinned` entirely, so a pinned package still
+fails `update --check`. The CTO's ruling: pinned packages MUST be excluded from the
+`--check` threshold — today's documentation is false, and that makes it a bug rather than
+a schema question.
+
+*Architect's concern, recorded once and not re-litigated:* this makes nimbopacks itself
+suppress a finding from an exit code, and the standing invariant is *"Nimbopacks
+implements no CVE suppression of its own — defer to grype"* (`CLAUDE.md`). It also changes
+`update --check` exit codes for existing configs that set `pinned`, and those exit codes
+are a public contract (`0` clean, `1` CVEs at or above threshold, `2` tool/config error).
+Two conditions keep the decision inside the invariant, and the implementing ADR MUST carry
+both:
+
+1. **Report, don't hide.** A finding against a pinned package MUST still appear in every
+   output format, flagged as pinned. Only its contribution to the exit code changes.
+   Suppression removes evidence; this removes a gate. They are different acts and the spec
+   must say which one `pinned` is.
+2. **Name the semantics.** `pinned` is an *operator acknowledgement that this package is
+   held at a known version*, not a vulnerability waiver. `.grype.yaml` remains the only
+   place a CVE is waived.
+
+Because it modifies a public contract, A14 ships as **ADR-0005** with its own migration
+note, per this ADR's own rule, not as a line item here.
+
+**Two further calls made by the CTO in the same ruling**, recorded so they are not lost:
+
+- **`--fail-on` typo must be an error.** `severityRank` returning `-1` (`update.go:180`, used by `MeetsThreshold` at `:222`)
+  means a misspelled threshold clears on *everything* — silent and backwards. Validate the
+  flag and exit `2`. Same contract, same PR as A14/ADR-0005.
+- **Unknown keys warn, never error.** Confirmed as decided; it is already the v1 behaviour
+  specified in A1 above, and the rejected alternative (strict `KnownFields` decoding) is
+  recorded below.
 
 ---
 
@@ -276,32 +380,44 @@ own ADR, because it then modifies a public contract.
 
 - The v1 spec can be written. Seven fields stop being undecided, and the normative text
   will not bless decoration.
-- The one unavoidable digest change (`image.ports`) is paid inside the pre-freeze window,
-  where it costs nothing, instead of at a major version later.
-- Three Wolfi-, layering- and pipeline-shaped keys leave the backend-agnostic schema,
+- **No image digest moves.** Every disposition is digest-neutral for every config that
+  exists today. The freeze can be taken without a re-pin, which is the outcome the draft
+  of this ADR could not promise.
+- Three Wolfi-, monorepo- and pipeline-shaped keys leave the backend-agnostic schema,
   which moves `internal/types` measurably closer to passing the second-backend test.
 - The leniency corollary gives reviewers a mechanical rule for the next dead field, which
   there will be.
-- `image.labels` closes a real supply-chain attribution gap rather than papering over it.
+- `image.labels` closes a real supply-chain attribution gap rather than papering over it,
+  and the NIMA-11 measurement reduced it from "a backend change" to a four-line one.
+- `image.ports` forces the spec to grow an explicit **backend-capability gap** concept in
+  v1, against a field where getting it wrong costs nothing. Without A4 that concept would
+  have arrived for the first time alongside a second backend, under pressure.
 
 **Bad**
 
-- `image.ports` changes the digest of essentially every image built from a template or
-  sample. Anyone pinning a digest across this release re-pins. There is no way to have the
-  field mean what users think it means without paying this.
-- Deleting `update.auto_check` touches 50 files. It is mechanical, but it is a wide diff to
-  review and it will conflict with anything else editing templates or samples.
-- Two implementations (A4, A3) depend on an apko capability nobody here can verify. One of
-  them has a Delete fallback that is strictly more expensive than the primary choice, so
-  the verification result can increase the cost of this ADR after it is accepted.
+- Deleting `update.auto_check` touches 50 files, and stripping `image.ports` touches 22
+  templates, 26 samples and two packs. Both are mechanical, but together they are a very
+  wide diff that will conflict with anything else editing templates or samples. Land them
+  as two separate PRs, auto_check first.
+- **Two fields now ship as Reserved** (`build.template`, `image.ports`) against the CTO's
+  stated rule that a field must either do something or not exist. `build.template` is
+  normatively inert forever; `image.ports` is inert under the only backend we ship. Both
+  are defended above, but a reader of the v1 spec will encounter two keys that do nothing
+  when they run the tool, and "the spec is backend-agnostic" is a thin answer to someone
+  who only has one backend.
 - The leniency corollary buys cheap deletions by leaning on a loader behaviour we have
-  separately recommended changing (warn on unknown keys). The warnings will name keys we
+  separately decided to change (warn on unknown keys). The warnings will name keys we
   deliberately removed, and users will reasonably ask why. The migration notes must answer
   that.
-- `build.template` ships as a documented no-op. That is a smell, and the spec will say so
-  out loud.
-- Four of these seven decisions (A2–A5) are not the architect's to make, so this ADR is
-  `Proposed` until signed and the spec stays blocked until then.
+- A14's resolution puts nimbopacks in the business of deciding which findings gate an exit
+  code. The two conditions above keep it inside the "CVE policy is grype's" invariant, but
+  the invariant is now qualified rather than absolute, and future requests to extend
+  `pinned` into real suppression will cite this ADR.
+- A8b (`build.environment`) is identified but undecided, so the schema is not actually
+  complete at the end of this ADR. One known gap remains, named.
+- **The reproducibility claim is now known to be false** (below). That is not caused by
+  this ADR, but it lands in the same window and the v1 spec cannot assert byte-identical
+  rebuilds until it is fixed.
 
 **Neutral**
 
@@ -309,28 +425,51 @@ own ADR, because it then modifies a public contract.
   before the freeze.
 - Template and sample regeneration is required either way; the dispositions only change
   which keys the regeneration touches.
-- `internal/types` loses three fields and gains no new ones, so the leaf-key count in
-  `docs/spec/SCOPE.md` §0 drops from 31 to 28.
+- `internal/types` loses three fields (`build.context`, `update.auto_check`,
+  `update.repositories`), renames one (`build.env` → `build.options`, alias retained), and
+  gains one (`ApkoConfig.Annotations`, not part of the nimpack.yaml surface). The leaf-key
+  count in `docs/spec/SCOPE.md` §0 drops from 31 to 28.
 
 ---
 
 ## Alternatives considered
 
 **Reserve all seven.** Cheapest: no code changes, no template edits, no digest movement,
-and the spec ships on time. Rejected because it ships a documented no-op in 22 of 23
-templates. A user who reads the spec learns that the `ports` key nimbopacks itself wrote
-into their config does nothing — which is worse than it being undocumented, because now
-it is deliberate. It also does not escape the trap, it defers it: every reserved field is
-still criterion-7 breaking to activate later, so this alternative converts a one-release
-decision into a permanent one.
+and the spec ships on time. Rejected because it ships a documented no-op that nimbopacks
+*itself writes* into the user's config — which is worse than being undecided, because it
+is then deliberate. It also does not escape the trap, it defers it: every reserved field
+is still criterion-7 breaking to activate later, so this alternative converts a
+one-release decision into a permanent one. The two fields that do end up Reserved are
+Reserved for reasons that do not generalise: one is provenance, one is a backend-capability
+gap, and both are stripped from the generators so we stop asserting them on the user's
+behalf.
 
 **Delete all seven.** Maximally clean: the schema contains only fields with behaviour, and
-under the leniency corollary nothing breaks. Rejected for `image.ports` and `image.labels`
-specifically. Ports is information the user already took the trouble to write and that two
-packs already infer correctly; throwing it away to avoid a one-time digest change is the
-wrong trade when the window to make that change for free is open right now. Labels are an
-attribution requirement for the supply-chain posture this project is explicitly targeting.
-Also rejected for `build.template`, which is useful provenance.
+under the leniency corollary nothing breaks. Rejected for `image.labels`, which is an
+attribution requirement for the supply-chain posture this project explicitly targets and
+which the conformance target uses 9–11 times per image. Also rejected for
+`build.template`, which is useful provenance.
+
+**Delete `image.ports`, since apko cannot express it.** The strongest remaining
+alternative, and the one the draft of this ADR named as its own fallback — the CTO's rule
+is that a field must either do something or not exist, and after NIMA-11 we know
+`image.ports` can do nothing under the shipped backend. Rejected because the premise is
+backwards: `nimpack.yaml` is specified to be backend-agnostic and implementable by others
+(`CLAUDE.md` design goals), so the capability of one adapter is not a reason to amputate
+the domain. Exposed ports are expressible in OCI, in Dockerfiles, in BuildKit and in
+Compose; a schema that cannot state them is strictly less expressive than a Dockerfile,
+and re-adding the key at v2 would then be a schema addition with a migration note rather
+than a free one. The real defect was that we *generated* the key, and the strip fixes that
+without the amputation. This is the one place in this ADR where the hexagonal lens argues
+*for* keeping an inert field.
+
+**Post-process the OCI config to implement `image.ports` anyway.** Technically possible:
+rewrite `config.ExposedPorts` in the image config after apko writes it. Rejected — the CTO
+ruled it out for v1 and the architecture agrees. It means nimbopacks mutating an artifact
+apko produced, after apko computed its SBOM over it, which puts the SBOM and the image out
+of agreement and breaks the attestation chain for a convenience field. It would also be
+the first piece of image-assembly logic living outside the backend, directly against
+"apko-native layering / no custom layering logic" and the spirit behind it.
 
 **Implement all seven.** Rejected. `build.context` would create a second monorepo mechanism
 that can disagree with `artifacts[].source`. `update.auto_check` would put CI-invocation
@@ -374,13 +513,27 @@ How we will know this decision is holding:
    `"2"`, `"1.0"`, `"v1"`, unquoted `1` — asserting warn-vs-error per release phase.
 4. **Template/sample conformance.** The `task spec-validate` target planned in
    `docs/spec/SCOPE.md` §5 workstream 3 validates all 23 templates and all 27 samples
-   against `nimpack.schema.json`. A template still emitting a deleted key fails CI.
-5. **Review gate.** The §4.6 mechanical PR checklist already requires "digest impact stated
+   against `nimpack.schema.json`. A template still emitting a deleted key fails CI. Extend
+   it with one extra assertion for A4: **no template, sample or pack may emit
+   `image.ports`** while the shipped backend cannot express it. Reserve only stays honest
+   if the generators stop writing the field, and that is the thing most likely to silently
+   regress when the next template is contributed.
+5. **`image.ports` ignored-with-warning test.** Two configs differing only in
+   `image.ports` MUST produce identical `ApkoConfig`, and the one that sets it MUST emit
+   the backend-capability warning. This is what distinguishes A4's Reserve from the
+   undocumented no-op it replaces.
+6. **`image.labels` determinism test.** The same `labels` map, built twice, MUST produce
+   byte-identical apko `annotations:` output. A Go `map` round-tripped naively does not
+   guarantee this, and it is the only new map-to-output path this ADR introduces — the
+   reproducibility lens applied to its own decision.
+7. **Review gate.** The §4.6 mechanical PR checklist already requires "digest impact stated
    explicitly, even when it is none". Add one line to it: *if the PR gives behaviour to a
    previously-inert field, it cites this ADR or supersedes it.*
-6. **Grep guard.** The §7 verification loop in `docs/spec/SCOPE.md` re-run in CI: no field
+8. **Grep guard.** The §7 verification loop in `docs/spec/SCOPE.md` re-run in CI: no field
    in `internal/types` may be written by `pack.BaseConfig` or a template while having zero
-   production readers. This is what would have caught all seven a year ago.
+   production readers. This is what would have caught all seven a year ago. `image.ports`
+   is the deliberate exception and must be allow-listed by name, with this ADR cited — an
+   exception that is not written down is how the next dead field gets in.
 
 Items 1–3 are new tests in `internal/config` and `internal/types`, both at **0.0%** and
 **45.0%** coverage today, so this ADR also retires part of the coverage debt
@@ -388,47 +541,69 @@ Items 1–3 are new tests in `internal/config` and `internal/types`, both at **0
 
 ---
 
-## Open items — not decided here, handed off
+## Build-environment verification — results (NIMA-11, closed 2026-10-23)
 
-| Item | Why it cannot be settled here | Owner | Unblock action |
-|---|---|---|---|
-| **A12** — does an absent `image.layering` block mean single layer (`types.go:129`) or apko-default multi-layer (`backend.go:67`)? The two comments disagree, and the answer is the digest of every image built without a `layering:` block. | Requires a real apko build. **No Docker in this environment.** | Whoever has a build environment | Build one sample with and without a `layering:` block; compare layer counts and digests. Record the result in ADR-0004. |
-| **apko capability: exposed ports** | apko is a downloaded binary, not a Go dependency; its config schema is not inspectable from this checkout and there is no network. | Same | Inspect the pinned apko (v0.27.0 line) image-configuration schema for an exposed-ports key. Result selects A4's primary (Implement) or fallback (Delete). |
-| **apko capability: annotations** | Same | Same | Same inspection for an annotations key. A negative result moves A3 to Reserve plus a backend issue; it does not move it to Delete. |
-| **melange keygen digest perturbation** (`wolfi.go:70` generates a fresh RSA key per build) | Needs a double-build to see whether the signature segment reaches the final digest. | Same | Build the same sample twice with a fixed `SOURCE_DATE_EPOCH`; compare digests. If they differ, the `Reproducible: true` capability claim at `backend.go:151` is false and the spec's reproducibility clause must be rewritten. |
+The draft of this ADR handed four measurements to whoever had a build environment, because
+none of them were answerable from a checkout without Docker. Three were answered anyway:
+`apko build` and `melange keygen`/`sign`/`index` do not need a container runtime, only
+`melange build` does. All four rows are now closed.
 
-A1, A6, A7 are decided and need no further input. A2–A5 are recorded as **Proposed**
-pending CTO / Board sign-off; this ADR moves to **Accepted** only when every row of the
-decision table has a name and a date in its "Decided by" column.
+| Question | Result | Effect on this ADR |
+|---|---|---|
+| **A12** — absent `image.layering`: single layer, or apko-default multi-layer? | **Single layer.** A no-`layering:` build produced 1 layer, with apko's own history entry reading *"This is an apko single-layer image"*; `layering: {strategy: origin, budget: 10}` produced 10, grouped by origin. `types.go:129` was right, `pkg/backend/backend.go:67` was wrong; the comment is corrected in PR #29. | **Closed.** Normative consequence: an absent `image.layering` block MUST mean a single-layer image. ADR-0004 records the `LayeringConfig` decoupling, not this question. |
+| **apko capability: exposed ports** | **No.** No `ports`/`exposed-ports`/`expose` key anywhere in the pinned apko's top-level `ImageConfiguration` tag set (v1.4.12). The `ExposedPorts` symbol in the binary belongs to the output `v1.Config`, which apko never populates from input. | **A4 takes its stated fallback.** See A4 above. |
+| **apko capability: annotations** | **Yes**, key is `annotations:`. A trial build emitted both manifest-level OCI `annotations` and image-config `config.Labels`. | **A3 confirmed as Implement**, and reduced to a one-field mapping. |
+| **melange keygen digest perturbation** (`wolfi.go:70` generates a fresh RSA key per build) | **Yes, it perturbs the digest.** Signing one identical package with two fresh keys, then indexing and building with a pinned `--build-date`, produced different layer digests and diffIDs. Mechanism: the DER encoding of an RSA-PKCS1v1.5 signature varies in length key-to-key, the `.apk` size lands in the `S:` field of `/lib/apk/db/installed`, and that file is inside the layer tarball. The per-build public key under `/etc/apk/keys/` perturbs it independently. | **`Reproducible: true` at `backend.go:151` is false.** Out of scope for this ADR; tracked separately (below). It does not change any disposition, but it **blocks the reproducibility clause of the v1 spec**. |
 
-The four build-environment questions are delegated to **NIMA-11**
-("Build-environment verification: default layering, apko ports/annotations capability,
-melange keygen digest stability"), assigned to the CTO to route. None of them block
-sign-off on A2–A5; the apko ones only select between a disposition and its stated
-fallback.
+Two consequences leave this ADR rather than sitting in it:
+
+- **Reproducibility.** The wolfi backend advertises a capability it does not have. The v1
+  spec cannot assert "same source + same `nimpack.yaml` ⇒ same digest" until either the
+  signing key is made stable across builds of the same config, or the claim is narrowed
+  to something true. Tracked as its own issue; the spec's reproducibility section is
+  blocked on it, nothing else here is.
+- **Environment inputs.** NIMA-11 also confirms the §3 secondary finding that nothing
+  passes `--source-date-epoch` through to melange or apko — both inherit it ambiently. The
+  v1 reproducibility clause must enumerate the ambient environment as an input, or the
+  tool must pass it explicitly. Same issue.
+
+### Still open after this ADR
+
+| Item | Owner | Next step |
+|---|---|---|
+| **A8b** — a real `build.environment` channel mapping to melange's `environment.environment`, required by the Blockstax conformance target (`GOMODCACHE`). Additive and non-breaking, but a new public schema field. | CTO to accept; Principal Architect to spec | Own issue + a short ADR note before the freeze. Must land before `schema_version: "1"` is normative or it needs a migration note. |
+| **A9, A10, A11, A13** — `image.run_as` zero value, `layering.strategy` enum, `layering.budget` zero value, `artifacts[].dest` three behaviours. | Principal Architect | **ADR-0004**, together with the `LayeringConfig` / `ApkoConfig` / `MelangeConfig`-in-`internal/types` decoupling the CTO asked be raised separately. |
+| **A14 implementation** — exclude pinned packages from the `--check` threshold, and make a `--fail-on` typo exit `2`. | Engineering | **ADR-0005** plus the code change, carrying the two conditions stated above. |
 
 ---
 
 ## Sign-off record
 
-The six product calls (A2, A3, A4, A5, and the adjacent A8, A14) are out for verdict as
-an item-verdict interaction on **NIMA-9**, id `66ec95dd-1a28-420d-8755-8acd6255c488`,
-created 2026-10-23. Each item carries its disposition and its cost; the responder approves,
-rejects with the disposition they want instead, or defers.
-
-| Field | Proposed disposition | Verdict | Decided by | Date |
+| # | Field | Disposition | Decided by | Date |
 |---|---|---|---|---|
-| `schema_version` (A1) | Implement — warn-then-error ramp | Decided | Principal Architect | 2026-10-23 |
-| `build.template` (A7) | Reserve — informational | Decided | Principal Architect | 2026-10-23 |
-| `update.repositories` (A6) | Delete | Decided | Principal Architect | 2026-10-23 |
-| `image.ports` (A4) | Implement — OCI `ExposedPorts` | *pending* | CTO / Board | — |
-| `image.labels` (A3) | Implement — OCI annotations | *pending* | CTO / Board | — |
-| `build.context` (A2) | Delete | *pending* | CTO / Board | — |
-| `update.auto_check` (A5) | Delete | *pending* | CTO / Board | — |
-| `build.env` (A8, adjacent) | Document the keyword channel; warn on unknown keys | *pending* | CTO / Board | — |
-| `update.pinned` (A14, adjacent) | Document current behaviour; do not change `MeetsThreshold` | *pending* | CTO / Board | — |
+| A1 | `schema_version` | Implement — warn-then-error ramp | Principal Architect | 2026-10-23 |
+| A2 | `build.context` | Delete | CTO | 2026-10-23 |
+| A3 | `image.labels` | Implement — apko `annotations:` | CTO | 2026-10-23 |
+| A4 | `image.ports` | Reserve — backend-capability gap; strip from generators | CTO (stated fallback, condition verified by NIMA-11) | 2026-10-23 |
+| A5 | `update.auto_check` | Delete | CTO | 2026-10-23 |
+| A6 | `update.repositories` | Delete | Principal Architect | 2026-10-23 |
+| A7 | `build.template` | Reserve — informational | Principal Architect | 2026-10-23 |
+| A8 | `build.env` (adjacent) | Rename to `build.options`; alias retained through v1; warn on unknown keys | CTO | 2026-10-23 |
+| A8b | `build.environment` (new) | **Undecided** — carried to its own issue | — | — |
+| A14 | `update.pinned` (adjacent) | Fix the code: exclude pinned from the `--check` threshold | CTO | 2026-10-23 |
+
+A2, A3, A4, A5, A8 and A14 were decided by the CTO on the record in the NIMA-9 thread on
+2026-10-23, as the six product calls this ADR was explicitly told not to make alone. A4's
+entry is a conditional decision whose condition was resolved by NIMA-11 on the same day:
+the CTO pre-authorised the fallback, the verification showed apko cannot express exposed
+ports, and the fallback is what is recorded. The item-verdict interaction raised on NIMA-9
+(`66ec95dd-1a28-420d-8755-8acd6255c488`) was superseded by that comment and withdrawn.
+
+Every row of the decision table now carries a name and a date, so the ADR is **Accepted**
+and workstream 2 of `docs/spec/SCOPE.md` §5 — the normative v1 text — is unblocked, with
+one named exception: the reproducibility clause, which waits on the `melange keygen`
+finding.
 
 This table is the record required by the review bar: a decision that shapes future work
-belongs in an ADR, not only in a comment thread. Fill in each pending row with the
-verdict, the name, and the date when the interaction resolves, then move **Status** to
-`Accepted`.
+belongs in an ADR, not only in a comment thread. From here the ADR is immutable — the
+single undecided row (A8b) is resolved by a *new* ADR, not by editing this one.

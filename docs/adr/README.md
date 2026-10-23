@@ -18,10 +18,20 @@ that uses the existing extension points.
 
 | # | Title | Status |
 |---|---|---|
-| [0003](0003-dead-field-disposition.md) | Disposition the seven parsed-and-ignored `nimpack.yaml` fields before the v1 freeze | Proposed |
+| [0003](0003-dead-field-disposition.md) | Disposition the seven parsed-and-ignored `nimpack.yaml` fields before the v1 freeze | **Accepted** 2026-10-23 |
 
 ADR-0001 (backend abstraction) and ADR-0002 (`schema_version` + compatibility policy)
 are in flight on their own branches; add them to this index when they merge.
+
+Planned, not yet written:
+
+- **ADR-0004** — decouple `LayeringConfig`, `ApkoConfig` and `MelangeConfig` from
+  `internal/types`; absorbs the `image.run_as` zero value, the `layering.strategy` enum,
+  the `layering.budget` zero value and the three behaviours of `artifacts[].dest`
+  (SCOPE §3 A9, A10, A11, A13).
+- **ADR-0005** — `update.pinned` excluded from the `--check` threshold, plus `--fail-on`
+  validation. Changes the `update --check` exit-code contract, so it carries its own
+  migration note.
 
 ## Rules
 
