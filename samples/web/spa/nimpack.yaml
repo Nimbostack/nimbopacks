@@ -22,8 +22,6 @@ image:
     - nginx
     - ca-certificates-bundle
   run_as: 65532
-  ports:
-    - "8080"
 
 update:
   auto_check: true

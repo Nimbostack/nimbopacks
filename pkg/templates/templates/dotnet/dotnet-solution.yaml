@@ -30,8 +30,6 @@ image:
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "false"
     ASPNETCORE_URLS: "http://+:8080"
   run_as: 65532
-  ports:
-    - "8080"
 
 # Each artifact maps to one project in the solution.
 # nimbopacks builds each, then assembles them into the image.

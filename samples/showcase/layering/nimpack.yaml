@@ -29,8 +29,6 @@ image:
   env:
     PORT: "8080"
   run_as: 65532
-  ports:
-    - "8080"
 
   # apko-native multi-layer image assembly.
   #

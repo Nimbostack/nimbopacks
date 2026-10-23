@@ -140,6 +140,7 @@ type Capabilities struct {
 	AtomicPatching bool // Can update single packages without full rebuild
 	Sandboxed      bool // Build runs in a sandbox (bubblewrap/container)
 	NoExternalDeps bool // Runs with zero external tool installs
+	ExposedPorts   bool // Can express image.ports as exposed-port image metadata
 }
 
 // GetCapabilities returns what each backend supports.
@@ -153,6 +154,7 @@ func GetCapabilities(name string) Capabilities {
 			AtomicPatching: true,
 			Sandboxed:      true,
 			NoExternalDeps: false, // Needs melange + apko (auto-installable)
+			ExposedPorts:   false, // apko's ImageConfiguration has no exposed-ports input key
 		}
 	default:
 		return Capabilities{}
