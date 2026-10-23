@@ -55,3 +55,46 @@ jobs:
           cache: true
       - name: Build binary
         run: go build ./...
+
+  # Secret scan over the full commit history, not just the diff. A secret
+  # removed in a later commit is still published the moment the repo is
+  # public, so the working tree being clean proves nothing.
+  #
+  # BLOCKING. gitleaks v8.30.1 reports no findings across all 23 commits on
+  # every ref as of 2026-10-23, so this starts green with no baseline file and
+  # no allowlist -- there is no suppression debt to inherit and nothing to
+  # grandfather in.
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # Full history: `gitleaks git` walks commits, and a shallow clone
+          # would silently scan almost nothing and still pass.
+          fetch-depth: 0
+          # The scan needs no credentials; don't leave a token in .git/config
+          # for it to run alongside.
+          persist-credentials: false
+
+      # Installed from the pinned release tarball rather than via
+      # gitleaks/gitleaks-action, which requires a GITLEAKS_LICENSE secret for
+      # organization-owned repositories. Verifying the published SHA-256 is
+      # also a stronger integrity check than trusting a tag.
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          set -euo pipefail
+          curl -sSfL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks version
+
+      # --redact is not cosmetic: without it gitleaks prints the matched
+      # secret, which would publish a real leak into the CI log the moment it
+      # detects one. --log-opts=--all covers every ref, including the PR head.
+      - name: Scan commit history
+        run: ./gitleaks git --no-banner --redact --exit-code 1 --log-opts="--all" .
