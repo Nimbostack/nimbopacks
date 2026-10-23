@@ -92,10 +92,6 @@ type BuildConfig struct {
 
 	// Env sets environment variables during the build.
 	Env map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
-
-	// Context is the build context path relative to the project root.
-	// Defaults to "." — useful for monorepos where the app is in a subdirectory.
-	Context string `yaml:"context,omitempty" json:"context,omitempty"`
 }
 
 type ImageConfig struct {
@@ -192,12 +188,6 @@ type Artifact struct {
 
 // UpdateConfig controls the CVE patching workflow.
 type UpdateConfig struct {
-	// AutoCheck runs `nimbopacks update --check` in CI (default: true).
-	AutoCheck bool `yaml:"auto_check" json:"auto_check"`
-
-	// Repositories are additional Wolfi repos to check for updates.
-	Repositories []string `yaml:"repositories,omitempty" json:"repositories,omitempty"`
-
 	// Pinned packages won't be updated automatically.
 	Pinned []string `yaml:"pinned,omitempty" json:"pinned,omitempty"`
 

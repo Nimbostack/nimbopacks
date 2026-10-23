@@ -27,6 +27,3 @@ image:
   env:
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "false"
   run_as: 65532
-
-update:
-  auto_check: true

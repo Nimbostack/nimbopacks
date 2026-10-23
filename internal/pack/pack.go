@@ -226,8 +226,5 @@ func BaseConfig(name, version, packName, templateName string) types.NimpackConfi
 			RunAs: 65532,
 			Env:   make(map[string]string),
 		},
-		Update: types.UpdateConfig{
-			AutoCheck: true,
-		},
 	}
 }

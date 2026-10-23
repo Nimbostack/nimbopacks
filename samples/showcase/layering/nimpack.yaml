@@ -50,6 +50,3 @@ image:
   layering:
     strategy: origin
     budget: 8
-
-update:
-  auto_check: true

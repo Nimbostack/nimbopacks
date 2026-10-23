@@ -38,6 +38,3 @@ image:
 #   - /healthz endpoint
 #
 # To customize, place your own nginx.conf in the project root.
-
-update:
-  auto_check: true

@@ -33,6 +33,3 @@ image:
 # or set NGINX_CONF_PATH in build.env:
 #   env:
 #     NGINX_CONF_PATH: config/nginx.conf
-
-update:
-  auto_check: true

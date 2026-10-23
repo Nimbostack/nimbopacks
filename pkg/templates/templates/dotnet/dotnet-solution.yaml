@@ -49,6 +49,3 @@ artifacts:
   #   source: src/{{ .ProjectName }}.Migrations
   #   command: "dotnet publish src/{{ .ProjectName }}.Migrations -c Release -o /home/build/output/app/migrator --no-self-contained"
   #   dest: /app/migrator
-
-update:
-  auto_check: true

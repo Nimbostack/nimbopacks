@@ -26,6 +26,3 @@ image:
   run_as: 65532
   ports:
     - "3000"
-
-update:
-  auto_check: true

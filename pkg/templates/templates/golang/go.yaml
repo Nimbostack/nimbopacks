@@ -35,6 +35,3 @@ image:
 #   - name: worker
 #     source: ./cmd/worker
 #     dest: /usr/bin/worker
-
-update:
-  auto_check: true
