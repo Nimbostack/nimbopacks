@@ -400,3 +400,35 @@ Items 1–3 are new tests in `internal/config` and `internal/types`, both at **0
 A1, A6, A7 are decided and need no further input. A2–A5 are recorded as **Proposed**
 pending CTO / Board sign-off; this ADR moves to **Accepted** only when every row of the
 decision table has a name and a date in its "Decided by" column.
+
+The four build-environment questions are delegated to **NIMA-11**
+("Build-environment verification: default layering, apko ports/annotations capability,
+melange keygen digest stability"), assigned to the CTO to route. None of them block
+sign-off on A2–A5; the apko ones only select between a disposition and its stated
+fallback.
+
+---
+
+## Sign-off record
+
+The six product calls (A2, A3, A4, A5, and the adjacent A8, A14) are out for verdict as
+an item-verdict interaction on **NIMA-9**, id `66ec95dd-1a28-420d-8755-8acd6255c488`,
+created 2026-10-23. Each item carries its disposition and its cost; the responder approves,
+rejects with the disposition they want instead, or defers.
+
+| Field | Proposed disposition | Verdict | Decided by | Date |
+|---|---|---|---|---|
+| `schema_version` (A1) | Implement — warn-then-error ramp | Decided | Principal Architect | 2026-10-23 |
+| `build.template` (A7) | Reserve — informational | Decided | Principal Architect | 2026-10-23 |
+| `update.repositories` (A6) | Delete | Decided | Principal Architect | 2026-10-23 |
+| `image.ports` (A4) | Implement — OCI `ExposedPorts` | *pending* | CTO / Board | — |
+| `image.labels` (A3) | Implement — OCI annotations | *pending* | CTO / Board | — |
+| `build.context` (A2) | Delete | *pending* | CTO / Board | — |
+| `update.auto_check` (A5) | Delete | *pending* | CTO / Board | — |
+| `build.env` (A8, adjacent) | Document the keyword channel; warn on unknown keys | *pending* | CTO / Board | — |
+| `update.pinned` (A14, adjacent) | Document current behaviour; do not change `MeetsThreshold` | *pending* | CTO / Board | — |
+
+This table is the record required by the review bar: a decision that shapes future work
+belongs in an ADR, not only in a comment thread. Fill in each pending row with the
+verdict, the name, and the date when the interaction resolves, then move **Status** to
+`Accepted`.
