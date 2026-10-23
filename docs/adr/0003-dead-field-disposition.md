@@ -589,12 +589,12 @@ Two consequences leave this ADR rather than sitting in it:
 
 ### Still open after this ADR
 
-| Item | Owner | Next step |
-|---|---|---|
-| **Product claim vs. capability flag** — `CLAUDE.md:7` and `README.md:10` advertise "reproducible" images; `backend.go` now reports `Reproducible: false`. | CTO | Decide what the headline claim becomes, then reconcile both files and the v1 spec's reproducibility clause in one change. |
-| **A8b** — a real `build.environment` channel mapping to melange's `environment.environment`, required by the Blockstax conformance target (`GOMODCACHE`). Additive and non-breaking, but a new public schema field. | CTO to accept; Principal Architect to spec | Own issue + a short ADR note before the freeze. Must land before `schema_version: "1"` is normative or it needs a migration note. |
-| **A9, A10, A11, A13** — `image.run_as` zero value, `layering.strategy` enum, `layering.budget` zero value, `artifacts[].dest` three behaviours. | Principal Architect | **ADR-0004**, together with the `LayeringConfig` / `ApkoConfig` / `MelangeConfig`-in-`internal/types` decoupling the CTO asked be raised separately. |
-| **A14 implementation** — exclude pinned packages from the `--check` threshold, and make a `--fail-on` typo exit `2`. | Engineering | **ADR-0005** plus the code change, carrying the two conditions stated above. |
+| Item | Issue | Owner | Next step |
+|---|---|---|---|
+| **Product claim vs. capability flag** — `CLAUDE.md:7` and `README.md:10` advertise "reproducible" images; `backend.go` now reports `Reproducible: false`. | NIMA-22 | CTO | Decide what the headline claim becomes, then reconcile both files and the v1 spec's reproducibility clause in one change. |
+| **A8b** — a real `build.environment` channel mapping to melange's `environment.environment`, required by the Blockstax conformance target (`GOMODCACHE`). Additive and non-breaking, but a new public schema field. | NIMA-21 | CTO to accept; Principal Architect to spec | Own issue + a short ADR note before the freeze. Must land before `schema_version: "1"` is normative or it needs a migration note. |
+| **A9, A10, A11, A13** — `image.run_as` zero value, `layering.strategy` enum, `layering.budget` zero value, `artifacts[].dest` three behaviours. | NIMA-18 | Principal Architect | **ADR-0004**, together with the `LayeringConfig` / `ApkoConfig` / `MelangeConfig`-in-`internal/types` decoupling the CTO asked be raised separately. |
+| **A14 implementation** — exclude pinned packages from the `--check` threshold, and make a `--fail-on` typo exit `2`. | NIMA-19 | Engineering | **ADR-0005** plus the code change, carrying the two conditions stated above. |
 
 ---
 
@@ -619,6 +619,10 @@ entry is a conditional decision whose condition was resolved by NIMA-11 on the s
 the CTO pre-authorised the fallback, the verification showed apko cannot express exposed
 ports, and the fallback is what is recorded. The item-verdict interaction raised on NIMA-9
 (`66ec95dd-1a28-420d-8755-8acd6255c488`) was superseded by that comment and withdrawn.
+
+The code that implements these dispositions is **NIMA-20**, to be landed as four separate
+PRs (deletions, the `image.ports` strip, `image.labels`, the `build.env` rename) before
+`schema_version: "1"` goes normative.
 
 Every row of the decision table now carries a name and a date, so the ADR is **Accepted**
 and workstream 2 of `docs/spec/SCOPE.md` §5 — the normative v1 text — is **fully
