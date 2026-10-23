@@ -415,9 +415,12 @@ note, per this ADR's own rule, not as a line item here.
   `pinned` into real suppression will cite this ADR.
 - A8b (`build.environment`) is identified but undecided, so the schema is not actually
   complete at the end of this ADR. One known gap remains, named.
-- **The reproducibility claim is now known to be false** (below). That is not caused by
-  this ADR, but it lands in the same window and the v1 spec cannot assert byte-identical
-  rebuilds until it is fixed.
+- **The reproducibility claim turned out to be false**, and the fix was to withdraw the
+  claim rather than earn it (NIMA-17). Not caused by this ADR, but it lands in the same
+  window, and it means §4.2 criterion 7 — which defines "breaking" in terms of digest
+  stability — rests on a property the tool does not have. The criterion needs rephrasing
+  against the `BuildPlan` instead. Every disposition here is plan-neutral as well as
+  digest-neutral, so nothing above has to change, but the policy text does.
 
 **Neutral**
 
@@ -553,15 +556,32 @@ none of them were answerable from a checkout without Docker. Three were answered
 | **A12** — absent `image.layering`: single layer, or apko-default multi-layer? | **Single layer.** A no-`layering:` build produced 1 layer, with apko's own history entry reading *"This is an apko single-layer image"*; `layering: {strategy: origin, budget: 10}` produced 10, grouped by origin. `types.go:129` was right, `pkg/backend/backend.go:67` was wrong; the comment is corrected in PR #29. | **Closed.** Normative consequence: an absent `image.layering` block MUST mean a single-layer image. ADR-0004 records the `LayeringConfig` decoupling, not this question. |
 | **apko capability: exposed ports** | **No.** No `ports`/`exposed-ports`/`expose` key anywhere in the pinned apko's top-level `ImageConfiguration` tag set (v1.4.12). The `ExposedPorts` symbol in the binary belongs to the output `v1.Config`, which apko never populates from input. | **A4 takes its stated fallback.** See A4 above. |
 | **apko capability: annotations** | **Yes**, key is `annotations:`. A trial build emitted both manifest-level OCI `annotations` and image-config `config.Labels`. | **A3 confirmed as Implement**, and reduced to a one-field mapping. |
-| **melange keygen digest perturbation** (`wolfi.go:70` generates a fresh RSA key per build) | **Yes, it perturbs the digest.** Signing one identical package with two fresh keys, then indexing and building with a pinned `--build-date`, produced different layer digests and diffIDs. Mechanism: the DER encoding of an RSA-PKCS1v1.5 signature varies in length key-to-key, the `.apk` size lands in the `S:` field of `/lib/apk/db/installed`, and that file is inside the layer tarball. The per-build public key under `/etc/apk/keys/` perturbs it independently. | **`Reproducible: true` at `backend.go:151` is false.** Out of scope for this ADR; tracked separately (below). It does not change any disposition, but it **blocks the reproducibility clause of the v1 spec**. |
+| **melange keygen digest perturbation** (`wolfi.go:70` generates a fresh RSA key per build) | **Yes, it perturbs the digest.** Signing one identical package with two fresh keys, then indexing and building with a pinned `--build-date`, produced different layer digests and diffIDs. Mechanism: the DER encoding of an RSA-PKCS1v1.5 signature varies in length key-to-key, the `.apk` size lands in the `S:` field of `/lib/apk/db/installed`, and that file is inside the layer tarball. The per-build public key under `/etc/apk/keys/` perturbs it independently. | **`Reproducible: true` at `backend.go:151` was false.** Resolved outside this ADR on NIMA-17: the flag is now `false`, and ephemeral per-build signing keys are **kept deliberately**. |
 
 Two consequences leave this ADR rather than sitting in it:
 
-- **Reproducibility.** The wolfi backend advertises a capability it does not have. The v1
-  spec cannot assert "same source + same `nimpack.yaml` ⇒ same digest" until either the
-  signing key is made stable across builds of the same config, or the claim is narrowed
-  to something true. Tracked as its own issue; the spec's reproducibility section is
-  blocked on it, nothing else here is.
+- **Reproducibility (NIMA-17, closed 2026-10-23).** The wolfi backend advertised a
+  capability it does not have. The resolution chose the security property over the
+  marketing one: `Reproducible` is now `false`, and melange keeps generating an ephemeral
+  signing key per build rather than reusing a pinned one, because long-lived signing
+  material on a build host is a worse exposure than a non-reproducible digest. I agree
+  with that trade. Two consequences the v1 spec must carry:
+
+  - The normative text defines nimbopacks' guarantee as **content-equivalence, not
+    byte-equivalence** — same source plus same `nimpack.yaml` plus same toolchain gives an
+    image with the same package set, SBOM and configuration, but not the same digest. It
+    must say so in the same breath as `SOURCE_DATE_EPOCH`, or readers will assume the
+    stronger claim.
+  - **`CLAUDE.md:7` and `README.md:10` both say "reproducible" with no qualifier, and the
+    code now says otherwise.** That is a contract-first defect: the top-line product claim
+    contradicts the capability flag. It is a product call, not an architect call — raised
+    separately.
+
+  This also softens §4.2 criterion 7, which defines a breaking change in terms of digest
+  stability. If digests are not stable build-to-build anyway, the criterion needs
+  rephrasing in terms of the *plan* — `MelangeConfig` + `ApkoConfig` — rather than the
+  digest. ADR-0004 or the compatibility-policy doc owns that; it does not change any
+  disposition here, because every disposition in this ADR is plan-neutral too.
 - **Environment inputs.** NIMA-11 also confirms the §3 secondary finding that nothing
   passes `--source-date-epoch` through to melange or apko — both inherit it ambiently. The
   v1 reproducibility clause must enumerate the ambient environment as an input, or the
@@ -571,6 +591,7 @@ Two consequences leave this ADR rather than sitting in it:
 
 | Item | Owner | Next step |
 |---|---|---|
+| **Product claim vs. capability flag** — `CLAUDE.md:7` and `README.md:10` advertise "reproducible" images; `backend.go` now reports `Reproducible: false`. | CTO | Decide what the headline claim becomes, then reconcile both files and the v1 spec's reproducibility clause in one change. |
 | **A8b** — a real `build.environment` channel mapping to melange's `environment.environment`, required by the Blockstax conformance target (`GOMODCACHE`). Additive and non-breaking, but a new public schema field. | CTO to accept; Principal Architect to spec | Own issue + a short ADR note before the freeze. Must land before `schema_version: "1"` is normative or it needs a migration note. |
 | **A9, A10, A11, A13** — `image.run_as` zero value, `layering.strategy` enum, `layering.budget` zero value, `artifacts[].dest` three behaviours. | Principal Architect | **ADR-0004**, together with the `LayeringConfig` / `ApkoConfig` / `MelangeConfig`-in-`internal/types` decoupling the CTO asked be raised separately. |
 | **A14 implementation** — exclude pinned packages from the `--check` threshold, and make a `--fail-on` typo exit `2`. | Engineering | **ADR-0005** plus the code change, carrying the two conditions stated above. |
@@ -600,9 +621,10 @@ ports, and the fallback is what is recorded. The item-verdict interaction raised
 (`66ec95dd-1a28-420d-8755-8acd6255c488`) was superseded by that comment and withdrawn.
 
 Every row of the decision table now carries a name and a date, so the ADR is **Accepted**
-and workstream 2 of `docs/spec/SCOPE.md` §5 — the normative v1 text — is unblocked, with
-one named exception: the reproducibility clause, which waits on the `melange keygen`
-finding.
+and workstream 2 of `docs/spec/SCOPE.md` §5 — the normative v1 text — is **fully
+unblocked**. The reproducibility clause, the last carve-out, was settled by NIMA-17 on the
+same day: it is now a clause with a known answer (content-equivalent, not byte-identical)
+rather than an open question.
 
 This table is the record required by the review bar: a decision that shapes future work
 belongs in an ADR, not only in a comment thread. From here the ADR is immutable — the

@@ -39,8 +39,12 @@ needed a build environment closed by NIMA-11. §3 below records the per-field
 outcome. The headline changed with the measurement: apko has **no** input path
 for exposed ports, so `image.ports` is reserved as a backend-capability gap and
 stripped from the generators rather than implemented, and **no image digest moves
-anywhere in ADR-0003**. The spec can now be written, with one carve-out — the
-reproducibility clause, which is blocked on the `melange keygen` finding below.
+anywhere in ADR-0003**. The spec can now be written. The last carve-out — the
+reproducibility clause — was settled the same day on NIMA-17: the wolfi backend
+reports `Reproducible: false`, ephemeral per-build signing keys are kept
+deliberately as a security property, and the v1 guarantee is therefore
+**content-equivalence, not byte-equivalence**. That has a knock-on effect on §4.2
+criterion 7, which is phrased in terms of digest stability — see §4.2.
 
 ---
 
@@ -212,11 +216,13 @@ Secondary findings worth recording but not blocking the schema freeze:
   RSA-PKCS1v1.5 signature's DER encoding varies in length key-to-key, that length
   lands in the `S:` field of `/lib/apk/db/installed`, and that file is inside the
   layer tarball; the per-build public key under `/etc/apk/keys/` perturbs it
-  independently. **So `Reproducible: true` at `backend.go:151` is false**, and the
-  spec's reproducibility clause is blocked until the signing key is made stable
-  across builds of the same config or the claim is narrowed to something true.
-  Tracked as its own issue; this is the one thing standing between ADR-0003 and a
-  fully unblocked spec.
+  independently. **Resolved on NIMA-17, 2026-10-23:** the flag is now `false`, and
+  the ephemeral key is kept on purpose — long-lived signing material on a build
+  host is a worse exposure than an unstable digest. Two items follow from that and
+  are **not** yet done: the normative text must define the guarantee as
+  content-equivalence rather than byte-equivalence, and `CLAUDE.md:7` /
+  `README.md:10` still advertise "reproducible" with no qualifier, which now
+  contradicts the code.
 - Nothing passes `--source-date-epoch` to melange or apko; both inherit
   `SOURCE_DATE_EPOCH` from the ambient environment. So the digest is a function
   of (source, nimpack.yaml, toolchain versions, **ambient env**). The spec must
@@ -258,6 +264,27 @@ A change to `internal/types/` or to any code that reads it is **breaking** if
    `layering.strategy` an enum).
 7. **Digest change.** For a fixed (source tree, `nimpack.yaml`, toolchain
    versions, `SOURCE_DATE_EPOCH`), the resulting image digest changes.
+
+**Criterion 7 needs rephrasing before §4 goes normative** (added 2026-10-23).
+NIMA-17 established that the wolfi backend is **not** byte-reproducible by
+design: `melange keygen` mints an ephemeral signing key per build, the
+signature's DER length varies key-to-key, and that length reaches the layer
+tarball through the `S:` field of `/lib/apk/db/installed`. So two builds of an
+*unchanged* config already produce different digests, and a criterion phrased
+against the digest can neither be satisfied nor falsified by a reviewer reading a
+diff — which was the whole point of §4.2.
+
+Replace it with a criterion against the **`BuildPlan`** (`MelangeConfig` +
+`ApkoConfig`), which is deterministic, diffable in a unit test, and the thing
+that actually determines image content:
+
+> **7′. Plan change.** For a fixed (source tree, `nimpack.yaml`, toolchain
+> versions), the serialised `BuildPlan` changes.
+
+Every disposition in ADR-0003 is plan-neutral as well as digest-neutral, so this
+rephrasing changes none of them. It is recorded here rather than applied, because
+promoting §4 to `COMPATIBILITY.md` is its own workstream (§5 item 5) and the
+criteria should be renumbered once, there.
 
 **Rule 7 corollary — "dead field activation":** implementing a field that is
 currently parsed-and-ignored (`build.context`, `image.labels`, `image.ports`,
@@ -345,7 +372,7 @@ Reviewers paste this into any PR touching `internal/types/`:
 | 5. Compatibility policy doc | `docs/spec/COMPATIBILITY.md` (§4 promoted to normative) + the PR checklist into `CONTRIBUTING.md` | **0.5 d** | Workstream 1 |
 | **Subtotal** | | **6.5 d** | |
 | 6. Digest-stability verification (A12, melange keygen) | ~~A double-build proving rebuild determinism and settling the default-layering question~~ | **done** | **Closed by NIMA-11, 2026-10-23.** A12 answered (absent ⇒ single layer); apko capability answered for both ports and annotations; `melange keygen` **does** perturb the digest. |
-| 7. Fix `Reproducible: true` | Make the melange signing key stable across builds of the same config, or narrow the capability claim | **unestimated** | New, from workstream 6. **Blocks the reproducibility clause of workstream 2 and nothing else.** |
+| 7. ~~Fix `Reproducible: true`~~ | Capability flag corrected to `false`; ephemeral signing keys kept deliberately | **done** | **Closed by NIMA-17, 2026-10-23.** Leaves two follow-ons: the §4.2 criterion-7 rephrasing below, and reconciling the "reproducible" claim in `CLAUDE.md:7` and `README.md:10` (product call → CTO). |
 | 8. A8b — `build.environment` | A real melange build-env channel (`MelangeEnvironment.Environment`), required by the Blockstax conformance target | **0.5 d** | Additive and non-breaking, but a new public key — must land before the freeze or it costs a migration note. Needs CTO acceptance. |
 
 Sequencing: workstream 1 gates everything. Workstream 4 is the one that should
@@ -353,10 +380,9 @@ start immediately regardless — it is pure debt, it is independent of the
 decisions, and it is what makes the "0.0% coverage" number stop being true.
 
 ~~Recommendation: do **not** start the normative text until ADR-0003 lands.~~
-**ADR-0003 landed 2026-10-23.** Workstream 2 may start, with one carve-out: the
-reproducibility clause waits on workstream 7, because the tool currently claims a
-property it does not have. Writing the rest of the RFC 2119 prose no longer risks
-blessing decoration — every field it describes now has a recorded disposition, and
+**ADR-0003 landed 2026-10-23, and workstream 7 closed with it.** Workstream 2 may
+start with no carve-out. Writing the RFC 2119 prose no longer risks blessing
+decoration — every field it describes now has a recorded disposition, and
 the two that are inert (`build.template`, `image.ports`) are inert *normatively*,
 which is a thing a spec can state honestly.
 
