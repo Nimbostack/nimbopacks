@@ -2,17 +2,31 @@
 
 | | |
 |---|---|
-| **Revision** | 1 — first draft |
+| **Revision** | 2 — incorporates the NIMA-10 architecture review |
 | **Date** | 2026-10-23 |
 | **Author** | Security Engineer |
-| **Reviewers** | Principal Architect (architecture invariants), CTO (risk acceptance) |
+| **Reviewers** | Principal Architect (architecture invariants, approved rev 2 with required edits — NIMA-10), CTO (risk acceptance, pending) |
 | **Code reviewed** | `main` @ `3f962f6` |
-| **Status** | Draft, pending Principal Architect review |
+| **Status** | Architecture-reviewed, out for PR |
 
 This is a retrospective threat model: the code exists, so the surfaces below were read
 rather than designed. Every finding was derived by reading the named file at the named
 line on `3f962f6`. Where a claim could not be demonstrated in this environment, it says
 so and says why it is still believed to be real.
+
+**Revision 2 changelog (NIMA-10).** All 7 required edits and all 4 recommended edits from
+the Principal Architect's review are folded in: CFG-2 ships with generate-time name
+normalisation; CFG-3's regex is replaced and its claim is split into confirmed/unverified
+halves; TCH-1's lock is `go:embed`-ed and never project-resolved; TLS-1 is sequenced
+against CFG-4; TLS-2's mitigation is re-addressed to `pkg/backend/wolfi/` instead of
+`internal/utils/`; TLS-3 targets the per-build work dir; §2 gains TB-6 and a Surface 6
+(`nimbopacks update`/grype); the named trust principle is stated once in §2.1 and cited
+from every place that independently derived it; `KnownFields(true)` is its own CFG-4
+mitigation; §1.3 gains an out-of-tree-templates entry; and §11's ordering reflects CFG-4's
+promotion to P0, a new P0 item for the `tlsutil` split, and an explicit land-in-this-order
+sequence rather than one shared date. The full review is on
+[NIMA-10](../../NIMA/issues/NIMA-10); its binding schema ruling (v1 is unfrozen pending
+`docs/spec/nimpack-v1.md`) is recorded in §4.1.
 
 ---
 
@@ -27,6 +41,7 @@ so and says why it is still believed to be real.
 | 3 | TLS and custom CA handling | `internal/utils/tlsutil.go` |
 | 4 | Container runner privileges (the melange runner) | `pkg/backend/wolfi/wolfi.go`, `.github/workflows/samples.yml` |
 | 5 | GitHub Actions supply chain | `.github/workflows/*`, `.github/dependabot.yaml` |
+| 6 | `nimbopacks update` / the grype invocation path (added rev 2, NIMA-10) | `internal/update/update.go`, `internal/update/grype.go` |
 
 ### 1.2 Explicitly deferred
 
@@ -47,6 +62,13 @@ management, no database, and no PII. The web-application lens set (authn/authz, 
 fixation, CSRF, SQL injection, SSRF-from-user-request) is therefore not applied. **If a
 future change adds a network service, a registry proxy, or an auth surface, this section
 is void and the broader lens set must be applied before that change merges.**
+
+- **Out-of-tree or remote template loading.** Today, every template is `go:embed`-ed from
+  `pkg/templates/templates/` (NIMA-10 pass 3, item D). That means templates ship inside the
+  binary and are reviewed as source — a genuine positive control, not an absence of one.
+  The risk arrives only if a future change adds a template source outside the binary (a
+  remote registry, a `--template-dir` flag, a URL). That change must trip this review
+  before it merges, the same discipline already applied to `internal/remote/` above.
 
 ---
 
@@ -77,6 +99,12 @@ is void and the broader lens set must be applied before that change merges.**
  │ GITHUB ACTIONS: fork PR (read-only token) │ tag push (packages:write,    │
  │                                           │ id-token:write → signs)      │
  └─────────────────────────────────────────────────────────────────────────┘
+
+ ┌─ TB-6 ──────────────────────────────────────────────────────────────────┐
+ │ SHARED BUILD CACHE  (~/.nimbopacks, internal/cache.CacheDir)            │
+ │   global per machine, NOT per project — persists across every build of  │
+ │   every project the invoking user runs; not drawn before this revision  │
+ └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 **TB-1 is the boundary that matters most, and today it is not mediated at all.**
@@ -85,6 +113,38 @@ is void and the broader lens set must be applied before that change merges.**
 calls `config.Load` (`pipeline.go:29`) and goes straight to `pack.Plan`. Complete
 Mediation is violated by construction: there is no checkpoint between untrusted YAML and
 the build plan.
+
+**TB-4 is drawn as output-only; it is actually bidirectional.** `AssembleImage`
+(`wolfi.go:229`) shells out to `docker push` and inherits ambient Docker credentials from
+the invoking environment — an inbound trust dependency into the NIMBOPACKS PROCESS box
+that the diagram above does not show. CFG-2 is the finding that exploits this crossing
+(an attacker-controlled `project.name` plus the victim's ambient credentials), but it is
+filed under Surface 1 even though the boundary it crosses is TB-4. Noted here rather than
+redrawn — per NIMA-10, cheaper and sufficient for this revision.
+
+**TB-6 is new in this revision.** `cache.CacheDir()` (`internal/cache/cache.go:24`)
+resolves to `~/.nimbopacks/cache`; `NewBuildWorkDir()` (`:40`) allocates a fresh timestamped
+directory per build beneath `BuildsDir()`, but that root is shared across every project the
+invoking user ever builds. This is TLS-3's pattern — a build artefact surviving on disk
+across builds — with a wider radius: the *next* build of a *different* project can observe
+whatever a prior build left in the shared root. No finding is filed against TB-6 itself in
+this revision; TLS-3's mitigation is updated below to land its fix in the per-build work
+dir rather than in `CacheDir()`'s root, specifically so it does not create one.
+
+---
+
+### 2.1 Named principle
+
+Four independent findings in this document derive the same rule from first principles —
+CFG-1's `--ca-cert` carve-out, TLS-1's move to an environment variable, RUN-1's
+CLI-flag-only runner, and the `toolchain.lock` placement decision (§5, TCH-1). Stated once
+here per NIMA-10, and cited by name from each:
+
+> **Repository content MUST NOT be able to widen a trust decision.** `nimpack.yaml`
+> travels with a fork PR and is written by whoever opened it. A CLI flag or an environment
+> variable is an act by the person at the keyboard, made at invocation time. A security
+> control may be *narrowed* by repository config and *widened* only by invocation — never
+> the other way round.
 
 ---
 
@@ -135,6 +195,19 @@ must be written down and enforced rather than left implicit:
 Everything below is about the parts of the config that are *not* obviously code and that
 a reader would therefore assume are inert data.
 
+### 4.1 Schema and compatibility ruling (binding, Principal Architect, NIMA-10)
+
+Several Phase 1 mitigations below change `types.TLSConfig` or add validation that an
+existing `nimpack.yaml` could fail. Each is called out as breaking where it is. The
+Principal Architect ruled this window open as of 2026-10-23: `schema_version: "1"` is
+**not frozen** — there is no released 1.0, no published spec, and `docs/spec/nimpack-v1.md`
+does not exist. CFG-1's `inject_into_image` default flip, CFG-2/CFG-3's charsets, CFG-4's
+`KnownFields(true)`, and TLS-1's `insecure` removal may all land **without** a
+`schema_version` bump, conditional on: **ADR-0002** (Principal Architect, covers all three
+`types.TLSConfig` changes as one set), a release-note migration entry per change, and
+CFG-1's `nil`-state build-time warning as its migration mechanism. **This window closes the
+day `docs/spec/nimpack-v1.md` lands** — after that, each of these becomes a v2 change.
+
 ---
 
 ### CFG-1 — Arbitrary file read via `tls.ca_cert_paths` exfiltrated into the published image
@@ -155,7 +228,7 @@ a reader would therefore assume are inert data.
    `..` rejection and no containment check against `srcDir`.
 2. `LoadCACerts` (`tlsutil.go:23`) `os.ReadFile`s every entry and concatenates the raw
    bytes. **It never parses the result as PEM.** Only `NewTLSConfig` calls
-   `AppendCertsFromPEM` — and `NewTLSConfig` has zero callers (§5.1).
+   `AppendCertsFromPEM` — and `NewTLSConfig` has zero callers (§6.1).
 3. `wolfi.BuildPackage` (`wolfi.go:95`) calls `LoadCACerts` **directly**, so the
    unvalidated bytes skip the only PEM check in the codebase.
 4. `TLSConfig.ShouldInjectIntoImage()` (`types.go:61`) **defaults to true**.
@@ -200,14 +273,27 @@ proof once Docker exists.
 1. In `resolvePath`, resolve with `filepath.Abs` + `filepath.EvalSymlinks` and reject any
    result not contained in `srcDir`, unless the path came from the `--ca-cert` CLI flag
    (an explicit operator action) rather than from `nimpack.yaml`. Config-supplied paths
-   get no escape hatch.
+   get no escape hatch. This is the named principle from §2.1: a CLI flag may widen a
+   trust decision that repository content may only narrow.
 2. In `LoadCACerts`, parse every file with `pem.Decode` in a loop and **reject the build**
    unless every block is `CERTIFICATE` and `x509.ParseCertificate` succeeds. A CA bundle
-   that is not a CA bundle is a bug in every case; failing closed costs nothing.
-3. Flip the default: `inject_into_image` defaults to **false**. Putting a private CA in a
-   shipped image is the dangerous path and must be the opt-in one.
+   that is not a CA bundle is a bug in every case; failing closed costs nothing. (This
+   lands on the backend-agnostic side of the `tlsutil` split — see TLS-2.)
+3. Flip the default: `inject_into_image` defaults to **false**. Approved pre-1.0 under
+   §4.1's ruling, with a mandatory migration mechanism — this is breaking by the
+   reproducibility test, not the loose one: an existing config with `ca_cert_paths` set and
+   `inject_into_image` omitted produces a different image digest after the flip. Keep the
+   `*bool` tri-state in `types.go:52` (`InjectIntoImage *bool`) rather than collapsing it to
+   a plain `bool` — do not lose the `nil` state. When `HasCustomCAs() && InjectIntoImage ==
+   nil`, emit a build-time warning naming the default change and the one-line fix
+   (`tls: { inject_into_image: true }`); that warning *is* the migration mechanism. Lands
+   under ADR-0002 (Principal Architect). **v2 follow-up, recorded now:** once the warning
+   has shipped one minor release, `inject_into_image` becomes required whenever
+   `ca_cert_paths` or `ca_dir_path` is set — making the illegal state unrepresentable
+   instead of merely defaulted.
 4. Log every injected certificate's subject and SHA-256 fingerprint at build time, so the
-   operator can see what they shipped.
+   operator can see what they shipped. (Also lands on the backend-agnostic side of the
+   `tlsutil` split.)
 
 **Residual risk after Phase 1:** a user can still deliberately inject a real certificate
 they control. That is the feature. Secrets that happen to be valid X.509 certificates
@@ -255,8 +341,39 @@ load time and reject on mismatch. That is the APK package-name charset; it canno
 variants at once. Enforce it in a re-activated `config.Validate` (see CFG-4), not in each
 pack.
 
-**Residual risk:** none for this class once the charset is enforced; `--push` with an
-explicit `--tag` remains the operator's responsibility.
+**Required: this charset must ship with generate-time normalisation, or it breaks
+`init` → `build` out of the box.** `cmd/nimbopacks/main.go:160` sets
+`projectName = filepath.Base(absDir)`, and `:176`/`:258` override it with the last segment
+of the Go module path — neither is normalised, and `pkg/templates/templates_test.go:29`
+already asserts on `ProjectName: "OrderSystem"`. A checkout at `~/src/OrderService`, a
+module `github.com/acme/OrderService`, and that existing test fixture all fail the charset
+on their very first (capitalised) character — a convention a .NET repo hits immediately.
+Fix: **normalise at generate time, enforce strictly at load time.** Lowercase, collapse
+every run of disallowed runes to a single `-`, strip leading/trailing `-`, truncate to 63.
+This must ship in the same change as the charset — landing the charset first is the
+regression. Add a round-trip test: `OrderService` → `orderservice` → passes `Validate`.
+
+Three notes carried into the eventual `nimpack.yaml` spec, so the charset's shape is not
+"relaxed" later without re-deriving why it is what it is:
+
+- **`{0,62}` (63 total) is not a magic number** — the value must survive as a single DNS
+  label and as one OCI repository path component. Record the reason.
+- **Excluding `+` is deliberate**, even though apk package names do allow it (`libstdc++`,
+  `gcc-12`): `project.name` is *our* package name, never a dependency reference, so the
+  narrower charset is safe and must not be "fixed" back to apk's full charset.
+- **The charset treats the symptom; the root cause is that `project.name` is one
+  stringly-typed field overloaded across three grammars** — melange's `package.name` (apk),
+  an apko package-list entry (`pack.go:126`, where `~`, `>`, `=` are version-constraint
+  operators), and the default OCI tag (`wolfi.go:166`). The charset is the right Phase 1
+  fix because it is the **intersection** of all three grammars; the spec must record it as
+  the intersection, not as "the apk charset", or a future widening silently reopens the
+  apko-constraint variant. The v2 structural fix — a separate `image.repository` field so
+  an OCI reference stops being derived from a package name — is a known gap carried into
+  `docs/spec/nimpack-v1.md` by the Principal Architect.
+
+**Residual risk:** none for this class once the charset and its generate-time
+normalisation are both enforced; `--push` with an explicit `--tag` remains the operator's
+responsibility.
 
 ---
 
@@ -286,8 +403,20 @@ script. More subtly, a version containing a literal `${{` can introduce a *melan
 expansion that was never in the template — a genuine parser differential between "what
 nimbopacks wrote" and "what melange executes".
 
-**Honest limitation.** I could not demonstrate a working shell escape, for two reasons,
-and I am stating them rather than overclaiming:
+**This claim has a confirmed first-order half and an unverified second-order half — split
+per NIMA-10, so the weaker half cannot be used to dismiss the stronger one:**
+
+- **First-order (confirmed by construction, no melange run needed):** `project.version`
+  lands verbatim inside a melange `runs:` script (`pack.go:161` assigns it straight to
+  `Package.Version`), so shell metacharacters in it execute in the build sandbox. This
+  follows directly from that assignment plus melange's documented substitution behaviour —
+  nothing here depends on an environment that can run melange.
+- **Second-order (suspected, unverified):** a literal `${{` inside the version re-expands
+  as a *melange* directive, producing a parser differential between what nimbopacks wrote
+  and what melange executes. This depends on whether melange's template substitution is
+  single-pass, which cannot be determined without running melange.
+
+**Honest limitation, scoped to the second-order half only:**
 
 1. No template in `pkg/templates/templates/` currently embeds `${{package.version}}`
    inside a `runs:` block — `grep` confirms zero matches. The hazardous sink exists only
@@ -295,19 +424,31 @@ and I am stating them rather than overclaiming:
 2. melange cannot be executed here (no Docker), so the exact expansion/quoting semantics
    could not be exercised.
 
-**I still believe this is real** because (a) the sink is one community template away —
-the charter's explicit goal is "contributors add templates without writing Go", and a
-template author embedding `${{package.version}}` in a `runs:` block is the obvious thing
-to do; (b) nothing in the codebase prevents it, and nothing warns a template author; and
-(c) the root `melange.yaml` already proves the pattern is idiomatic here. This is a
-pre-positioned vulnerability waiting for its sink, and the cost of validating a version
-string is one regex.
+**I still believe the second-order half is real** because (a) the sink is one community
+template away — the charter's explicit goal is "contributors add templates without
+writing Go", and a template author embedding `${{package.version}}` in a `runs:` block is
+the obvious thing to do; (b) nothing in the codebase prevents it, and nothing warns a
+template author; and (c) the root `melange.yaml` already proves the pattern is idiomatic
+here. This is a pre-positioned vulnerability waiting for its sink. Severity and
+exploitability above are unchanged by the split — the confirmed first-order half alone
+already carries S3/E3 (S4/E4 if the runner is docker, see RUN-1); the second-order half
+only adds to it, never substitutes for it.
 
-**Phase 1 mitigation.** Validate `project.version` against
-`^[0-9]+(\.[0-9]+){0,3}([-+][0-9A-Za-z.-]+)?$` at load time. Reject `${{`, backticks,
-`$(`, quotes, newlines, and whitespace anywhere in the value. Add a template-author note
-to `CLAUDE.md`'s "Adding a template" section. Add a `go test -fuzz` target over
-`config.Load` + `Validate` that asserts no accepted value contains `${{`.
+**Phase 1 mitigation.** The originally proposed regex
+(`^[0-9]+(\.[0-9]+){0,3}([-+][0-9A-Za-z.-]+)?$`) is **rejected on review** on two grounds:
+it allows `+`, which apk versions have no semver build-metadata concept for and which
+melange's `package.version` + `epoch` composition either mangles or rejects; and it allows
+`-` with further `-` inside, so melange's `-r${{package.epoch}}` suffix turns `1.0-rc1`
+into `1.0-rc1-r0`, which apk's comparator reads ambiguously. **Counter-proposal for v1:**
+`^[0-9]+(\.[0-9]+){0,3}$` — strictly numeric-dotted, nothing else. It costs nothing today
+(every `nimpack.yaml` under `samples/` is `0.0.1`, and `main.go:165` hardcodes
+`Version: "0.0.1"` for generated configs, so there is zero migration), it still rejects
+`${{`, backticks, `$(`, quotes, newlines, `+`, `-`, and whitespace, and it gets the
+compatibility direction right: widening a charset later is non-breaking, narrowing it is
+breaking, so v1 should start at the tightest thing that works and add prerelease support
+in v1.1 as a free widening. Add a template-author note to `CLAUDE.md`'s "Adding a template"
+section. Add a `go test -fuzz` target over `config.Load` + `Validate` that asserts no
+accepted value contains `${{`.
 
 **Residual risk:** melange's own expansion of maintainer-written templates is unchanged.
 A malicious template is still a malicious template; template review is the control there.
@@ -337,22 +478,42 @@ required.
 - **`schema_version` is never checked.** A file declaring `schema_version: "2"` is parsed
   as v1 and built. When v2 exists, this is a version-confusion parser differential: the
   author's intent and the tool's interpretation diverge silently.
-- **Unknown keys are silently discarded.** `yaml.Unmarshal` is used without
-  `Decoder.KnownFields(true)`. A typo such as `tls: { insecur: true }` or
-  `image: { run_as_: 0 }` is accepted and ignored, so a user who believes they configured
-  a control has not. Allowlist-beats-denylist applies to config keys too.
 - **No size limit.** `os.ReadFile` on an arbitrary path with no cap, feeding a YAML
   parser. `gopkg.in/yaml.v3` has internal alias-expansion limits, so I am **not** claiming
   a billion-laughs break; I am claiming there is no defence-in-depth bound and no reason
   not to have one.
 - **`Load` returns `(nil, nil)` for a missing file.** Both call sites happen to handle it
   (`pipeline.go:33`), but a fail-open sentinel is the wrong default shape for a security-
-  relevant loader; a third caller will get it wrong.
+  relevant loader; a third caller will get it wrong. Note for whoever implements a fix:
+  changing the sentinel is a CLI behaviour change (what `nimbopacks build` does in a
+  directory with no `nimpack.yaml`), not a pure refactor — scope it as such.
 
-**Phase 1 mitigation.** Call `config.Validate(cfg)` from `pipeline.Build` and
-`update.Run` immediately after `Load`, and extend it to enforce CFG-2's name charset,
-CFG-3's version charset, `schema_version == "1"`, and `tls.ca_cert_paths` containment.
-Add `Decoder.KnownFields(true)` and a 1 MiB read cap. Ship a regression test per rule.
+**Mitigation A — wire the validator (the precondition for CFG-2 and CFG-3).** Call
+`config.Validate(cfg)` from `pipeline.Build` and `update.Run` immediately after `Load`, and
+extend it to enforce CFG-2's name charset, CFG-3's version charset, `schema_version ==
+"1"`, and `tls.ca_cert_paths` containment. Ship a regression test per rule. **No
+architecture invariant is broken by wiring validation into `internal/pipeline` and
+`internal/update`** — per NIMA-10, the charter's "adding a pack/template must not require
+touching `internal/types/`/`internal/pipeline/`" rule constrains what a pack contributor
+must edit, not a freeze on those packages; validated fields are owned by no pack, and
+validation is domain logic, so `internal/config` is the correct home for it.
+
+**Mitigation B — `Decoder.KnownFields(true)`, promoted to its own mitigation because it is
+itself a breaking change.** `yaml.Unmarshal` is used without it today, so a typo such as
+`tls: { insecur: true }` or `image: { run_as_: 0 }` is silently accepted and ignored — a
+user who believes they configured a control has not. Allowlist-beats-denylist applies to
+config keys too. But by the same compatibility test used throughout this document (*a
+schema change is breaking if an existing valid `nimpack.yaml` stops working*), turning this
+on is breaking: any config carrying an unknown key starts failing. That is desirable, but
+it needs the same treatment as every other break in this document — approved under §4.1's
+ruling, with an ADR and a release-note migration entry, not a casual sub-bullet. **It must
+land after TLS-1's hard-fail-on-`insecure:true` step and before `Insecure`'s removal** (see
+TLS-1's four-step sequencing) — otherwise a config harmlessly carrying `tls: { insecure:
+false }`, copy-pasted from current docs, starts hard-failing with a generic unknown-key
+error instead of TLS-1's explicit one.
+
+**Phase 1 mitigation, unchanged from the above:** add a 1 MiB read cap alongside Mitigations
+A and B.
 
 **Residual risk:** `build.command` remains arbitrary shell by design (§4.0). Validation
 does not change that and must not pretend to.
@@ -437,10 +598,27 @@ three instances:
 func fetchVerified(ctx context.Context, spec ToolSpec) (path string, err error)
 ```
 
-1. **Pin by default.** Ship a committed `toolchain.lock` with `{tool, version, os, arch,
-   sha256}` for every supported platform. `toolchain install` with no `--version` installs
-   the locked version, not `latest`. `--version`/`upgrade` rewrites the lock and prints a
-   diff.
+1. **Pin by default, and the lock's placement is itself a required decision, not an
+   implementation detail.** The lock must live at **`internal/toolchain/toolchain.lock`,
+   loaded via `go:embed` — never resolved from the project directory or the CWD.** The
+   trap: if `toolchain install` resolved a `toolchain.lock` relative to the project being
+   built, an attacker-supplied repository could ship its own lock, pin its own digests, and
+   defeat this entire mitigation while appearing to be fixed — pinning an attacker can
+   rewrite is worse than no pinning, because it reads as a control in review. The lock pins
+   *nimbopacks' own* toolchain (identical for every user of a release), not project
+   configuration, so it does not belong at the repo root alongside `nimpack.yaml` /
+   `.grype.yaml` / `.goreleaser.yaml` — that location invites exactly the wrong resolution
+   logic. Embedding is consistent with the existing `pkg/templates/templates/` pattern
+   (ship-with-the-binary data, reviewed as source) and keeps it out of `--ca-cert`'s and
+   `--runner`'s territory: not overridable by repository content, only by an operator's
+   `--toolchain-lock` CLI flag (§2.1's named principle, fourth instance). Keyed on
+   `(tool, version, GOOS, GOARCH) → {assetName, sha256}` — a full platform matrix, not one
+   entry per tool (see TCH-2) — and loaded via `go:embed` so an unlocked platform fails
+   loudly rather than guessing. **Accepted cost:** bumping a pinned tool version now
+   requires cutting a nimbopacks release, which is the correct trade — it makes toolchain
+   version changes release-gated and CODEOWNERS-reviewable (CI-4) instead of ambient — but
+   it is a real maintainer-velocity cost and should not be discovered later. `toolchain
+   install` with no `--version` installs the locked version, not `latest`.
 2. **Verify the digest unconditionally.** Stream the download through
    `sha256.New()` and compare against the lock before anything is written to the install
    directory. Mismatch = hard failure, nothing written. No `--skip-verify` flag; if one is
@@ -448,7 +626,16 @@ func fetchVerified(ctx context.Context, spec ToolSpec) (path string, err error)
 3. **Download to a `0600` temp file in the same directory, `chmod 0755` and
    `os.Rename` only after verification passes.** Today a failed or truncated download
    leaves an executable at the canonical path.
-4. **Phase 2 (schedule now, 30 days):** cosign keyless verification against the upstream
+4. **`fetchVerified` must preserve TCH-3's no-token-to-CDN split, with a regression test.**
+   TCH-3 credits `setGitHubAuth` (`toolchain.go:321`) for being applied to the two
+   `api.github.com` requests and **not** to the asset download (`toolchain.go:425`), so
+   `GITHUB_TOKEN` never reaches the release CDN or a redirect target — a load-bearing
+   property. The natural shape of "one helper that does the API call and the download" is
+   one client with one auth configuration, which would silently re-merge the two and leak
+   the token to the CDN. Add a test asserting no `Authorization` header is present on the
+   asset request or on any redirect hop, so the refactor that threatens TCH-3's good
+   behaviour cannot regress it unnoticed.
+5. **Phase 2 (schedule now, 30 days):** cosign keyless verification against the upstream
    OIDC identity for melange/apko/grype, and SLSA provenance where published. Digest
    pinning is the 90%-good fix available this week; signature verification is the right
    long-term control because it survives a lock-file bump.
@@ -492,11 +679,14 @@ filtered only by the suffix denylist above. Three concrete failure modes:
    one.
 3. **Order dependence.** The loop takes the *first* match in GitHub's asset ordering, so
    which binary is installed depends on an upstream-controlled list order. Non-determinism
-   in a security decision is itself the defect.
+   in a security decision is itself the defect — and it is not only a security defect:
+   *order dependence on an upstream-controlled list* is a reproducibility violation by the
+   charter's own constraint as well, which widens the set of reviewers who should care
+   about fixing it.
 
 **Phase 1 mitigation.** Replace the whole block with an **exact-name allowlist** derived
 from the lock file: `toolchain.lock` names the exact asset filename per
-`(tool, version, os, arch)`, and selection is `asset.Name == spec.AssetName`. No
+`(tool, version, GOOS, GOARCH)`, and selection is `asset.Name == spec.AssetName`. No
 `Contains`, no suffix denylist, no ordering dependence. Combined with TCH-1's digest check
 this makes asset selection unambiguous. Unit-test with a synthetic release payload
 containing all three decoy names above.
@@ -585,18 +775,34 @@ network path. The `//nolint:gosec` at `tlsutil.go:69` means the linter will not 
 
 **Phase 1 mitigation.**
 
-1. **Remove `Insecure` from `nimpack.yaml` entirely.** A repo-committed file must not be
-   able to disable transport security for whoever clones it. If the debugging capability
-   is genuinely needed, move it to `NIMBOPACKS_TLS_INSECURE=1` — an environment variable
-   is a deliberate act by the person at the keyboard and does not travel with the repo.
+1. **Remove `Insecure` from `nimpack.yaml` entirely** — a schema removal, and therefore
+   breaking by definition, but the cheapest breaking change in this document: `NewTLSConfig`
+   has zero callers today, so no build's behaviour changes and no image digest changes when
+   it goes; the only thing that breaks is a config that *mentions* the key. Approved
+   pre-1.0 under §4.1's ruling — same declaration as CFG-1, and ADR-0002 covers CFG-1,
+   TLS-1, and TLS-2 together since all three touch `types.TLSConfig`. If the debugging
+   capability is genuinely needed, move it to `NIMBOPACKS_TLS_INSECURE=1` — the named
+   principle in §2.1: an environment variable is a deliberate act by the person at the
+   keyboard and does not travel with the repo.
 2. When it is set, print a red banner on **every** affected request and refuse to combine
    it with `--push` or with `toolchain install`. Downloading an executable over an
    unverified channel is never a debugging need.
-3. Pending removal: have `config.Validate` **hard-fail** on `tls.insecure: true` with
-   "this field is not implemented and must not be relied upon". Fail closed on a security
-   knob that does nothing.
-4. Delete or wire `NewTLSConfig`. Dead security code is worse than absent security code —
-   it reads as a control during review.
+3. **Required: sequence this against CFG-4's `Decoder.KnownFields(true)`, in this exact
+   order, because doing steps 3 and 4 in one PR produces the worst available user
+   experience.**
+   1. Keep `Insecure` in the struct.
+   2. `config.Validate` hard-fails on `insecure: true` with an explicit message — "this
+      field is not implemented and must not be relied upon." (Not on `insecure: false`;
+      that is a no-op the user can simply delete.)
+   3. CFG-4's `Decoder.KnownFields(true)` lands.
+   4. Remove the field one minor release later, by which point the explicit error has
+      been doing the teaching. Landing `KnownFields(true)` before the explicit hard-fail
+      replaces a specific, actionable error with a generic unknown-key error for anyone who
+      copy-pasted `tls: { insecure: false }` from current docs.
+4. **Wire `NewTLSConfig`, after `Insecure` is removed** — not an either/or with deletion;
+   TLS-2(b) explicitly needs it for the toolchain client, so "delete or wire" is resolved
+   elsewhere in this document and should not be left reading as an open choice. Dead
+   security code is worse than absent security code — it reads as a control during review.
 
 **Residual risk:** an operator can still set the env var. That is the intended, visible,
 non-propagating escape hatch.
@@ -641,14 +847,51 @@ then ships into the image.
 **This is the exact pattern the charter says to treat as a bug rather than a tradeoff:
 the secure path is harder than the insecure one.**
 
+**Required: the diagnosis is correct, but mitigation 1's original form would deepen an
+existing architecture violation, so its address changes, not its content.**
+`internal/utils/tlsutil.go` is already a Wolfi adapter living in the core, confirmed by
+NIMA-10:
+
+- `ImageCACertInstallStep` (`tlsutil.go:113`) returns a `types.MelangePipelineStep` whose
+  body is a shell script containing the literal melange template token
+  `${{targets.destdir}}`.
+- It hardcodes Alpine/Wolfi trust-store paths: `/usr/local/share/ca-certificates/` and
+  `/etc/ssl/certs/`.
+- A function is literally named `MelangeEnvVars` (`tlsutil.go:98`).
+- Its only three consumers in the tree are `pkg/backend/wolfi/wolfi.go:95`, `:109`, `:116`.
+  Nothing else calls it.
+
+By the hexagonal lens — domain code (`internal/utils`) must not know which adapter is
+loaded — a package that emits melange pipeline syntax and apk trust-store paths knows
+exactly which adapter is loaded. Putting the proposed `update-ca-certificates` step (the
+distribution-blessed mechanism *specifically for Alpine/Wolfi*) where the current
+step-emitter lives would drive the leak deeper and make the eventual extraction more
+expensive. This is recorded as a known gap in **ADR-0001** (backend-abstraction baseline,
+Principal Architect).
+
 **Phase 1 mitigation.**
 
-1. Build the sandbox bundle as **system roots + custom CAs**, not custom CAs alone: read
-   the Wolfi `ca-certificates-bundle` contents inside the build image and concatenate, or
-   copy the custom CAs into `/usr/local/share/ca-certificates/` and run `update-ca-certificates`
-   in a pipeline step instead of overriding `SSL_CERT_FILE`. The latter is simpler and is
-   the distribution-blessed mechanism.
-2. Give `internal/toolchain` a `*http.Client` built from `NewTLSConfig(srcDir, cfg.TLS)`
+1. **First, as a prerequisite — split `tlsutil` along the port/adapter line.** This is a
+   near-free mechanical move today (its only callers are already in `wolfi.go`) and stops
+   being free the moment a fix lands on top of the current shape, so it is sequenced ahead
+   of item 2 and of CFG-1's mitigations 2 and 4 in §11's P0 ordering.
+   - **Stays in `internal/utils/tlsutil.go` (backend-agnostic):** reading, resolving and
+     containment-checking CA paths; PEM parsing/validation (CFG-1 mitigation 2); producing
+     a verified `[]byte` bundle plus the subject/fingerprint list for logging (CFG-1
+     mitigation 4); building nimbopacks' own `*http.Client` for its own egress.
+   - **Moves to `pkg/backend/wolfi/` (adapter):** `MelangeEnvVars`,
+     `ImageCACertInstallStep`, and every `${{ }}` token and `/etc/ssl/certs` path —
+     including the `update-ca-certificates` step below. The port is "give me a verified CA
+     bundle and its fingerprints"; how a bundle becomes trust inside a build sandbox is the
+     backend's business.
+2. Build the sandbox bundle as **system roots + custom CAs**, not custom CAs alone: copy
+   the custom CAs into `/usr/local/share/ca-certificates/` and run
+   `update-ca-certificates` in a pipeline step (emitted from `pkg/backend/wolfi/` per item
+   1) instead of overriding `SSL_CERT_FILE`. Note for the implementer: this changes the
+   melange pipeline for every user with custom CAs, so it changes their image digest — a
+   reproducibility-visible change that belongs in release notes alongside CFG-1's default
+   flip.
+3. Give `internal/toolchain` a `*http.Client` built from `NewTLSConfig(srcDir, cfg.TLS)`
    so custom CAs apply to downloads — **after** TLS-1 removes `Insecure` from the config,
    not before. Ordering matters: wiring this up first is what turns TLS-1 from medium into
    critical.
@@ -691,16 +934,30 @@ Three problems, in order of severity:
    inconsistency within one function is the tell that `0644` was not a decision.
 3. The cleanup is best-effort and unordered with respect to signal handling.
 
-**Phase 1 mitigation.** Write the bundle to the build work directory from
-`cache.NewBuildWorkDir()` with mode `0600`, not into `SourceDir`; melange already receives
-`--source-dir` separately, so the bundle can be mounted or referenced from the work dir.
-If it must land in the source tree for the sandbox to see it, use `0600` **and** add
-`.nimbopacks-ca-bundle.pem` to `.gitignore` **and** register a signal handler that removes
-it. Regression test: assert the file mode is `0600` and that the path is not under
-`SourceDir`.
+**This is also a reproducibility defect, which makes the choice of destination
+non-optional.** A build killed by `SIGKILL` orphans the file in the source tree; the
+*next* build's `build.command` (`go build ./...`, `npm pack`, a `COPY .`-shaped step) may
+then see a file the previous build left behind, so the same source plus the same
+`nimpack.yaml` no longer produces the same image digest — a direct violation of the
+charter's reproducibility constraint, the same TB-6 pattern noted in §2.
 
-**Residual risk:** a hard `SIGKILL` can still orphan the file. The `.gitignore` entry is
-the backstop for the commit path.
+**Phase 1 mitigation, required to target the per-build work dir specifically, not
+`cache.CacheDir()`'s shared root.** Write the bundle into the directory returned by
+`cache.NewBuildWorkDir()` with mode `0600` — **not** `SourceDir`, and not the shared
+`CacheDir()` root either. Relocating it to `CacheDir()`'s root would trade a loud failure
+mode (a stray file visible in `git status`) for a quiet one (an orphaned file persisting
+indefinitely in TB-6's shared, cross-project cache). `NewBuildWorkDir()` already allocates
+a fresh timestamped directory per build, which is the correct scope. Confirm
+`nimbopacks cache clean` removes it. melange already receives `--source-dir` separately,
+so the bundle can be mounted or referenced from the work dir. If it must land in the
+source tree for the sandbox to see it, use `0600` **and** add
+`.nimbopacks-ca-bundle.pem` to `.gitignore` **and** register a signal handler that removes
+it. Regression test: assert the file mode is `0600` and that the path is under the
+per-build work dir, never under `SourceDir` or directly under `CacheDir()`.
+
+**Residual risk:** a hard `SIGKILL` can still orphan the file inside its per-build
+directory. `nimbopacks cache clean` is the backstop there; the `.gitignore` entry remains
+the backstop for the commit path if the source-tree fallback is ever used.
 
 ---
 
@@ -767,15 +1024,36 @@ actually grants — is a follow-up that needs Docker.
 2. Add `--runner` to the CLI and `build.runner` to nothing — keep it a **flag only**, not
    a `nimpack.yaml` field. A repository must not be able to choose its own sandbox
    strength; that is the operator's call, and making it a config field would re-create
-   CFG-1's shape.
-3. Print the selected runner in the build summary and in the SBOM's build metadata, so a
-   consumer can tell which boundary produced an image.
-4. Regression test: with a stubbed `exec.LookPath` reporting no `bwrap` and a present
+   CFG-1's shape. This is the fourth instance of §2.1's named principle.
+3. **Required addition: `--runner` is a Wolfi concept and must not harden into a
+   backend-agnostic CLI contract.** bubblewrap and docker are *melange* runners. The CLI
+   surface is a public contract, so a bare `--runner` flag silently promotes a Wolfi
+   implementation detail into it — a second backend would either have to pretend to
+   understand `--runner`, or the core would have to `switch` on backend name to decide
+   whether the flag is legal, which is the "no switch on language/backend in the core"
+   invariant breaking by another name. Pre-1.0 and with one backend, this does not need
+   `--backend-opt runner=docker` ceremony; it needs one cheap constraint: **the set of
+   valid `--runner` values is supplied by the selected backend, not hardcoded in `cmd/`.**
+   `cmd/` passes the string through; the backend validates it and errors on an unknown
+   value. ADR-0001 (Principal Architect) records `--runner` as a known Wolfi leak in the
+   CLI surface.
+4. Print the selected runner in the build summary unconditionally. **Gate the SBOM
+   build-metadata half on a verified no-digest-change test before adding it** — if the
+   runner name reaches anything that affects the image digest, the same source plus the
+   same `nimpack.yaml` produces different output on a bwrap machine versus a docker
+   machine, which breaks the reproducibility constraint directly. Worth confirming before
+   shipping rather than discovering after someone's reproducibility check fails.
+5. Regression test: with a stubbed `exec.LookPath` reporting no `bwrap` and a present
    `docker`, `BuildPackage` must return an error and must not append `--runner docker`.
 
 **Residual risk:** an operator who passes `--runner docker` accepts the weaker boundary
 knowingly. Documented in `docs/security/`, and re-evaluated once melange's docker-runner
 configuration can be audited with Docker available.
+
+**Sequencing note:** CFG-3's own severity line reads "S4 if the runner is docker" — RUN-1
+is a severity multiplier for CFG-3. Both are P1; land RUN-1 first so CFG-3 is scored
+against the runner state that is actually in effect, not split across tranches in the
+wrong order (§11).
 
 ---
 
@@ -849,11 +1127,12 @@ But it should be a recorded decision rather than an unexamined dependency, becau
 "minimal, no shell" is a claim the project makes about the images it *produces* and a
 reader will reasonably apply it to the image it *ships*.
 
-**Phase 1 mitigation.** Record it: a short ADR, or a note in `docs/security/`, stating
-that the Nimbopacks tool image intentionally contains `bash` because melange pipelines
-require a shell, that this does not apply to images Nimbopacks builds, and that
-application images produced by the packs must remain shell-free by default with a `-dev`
-variant as the opt-in.
+**Phase 1 mitigation.** Record it as a short ADR (Principal Architect has taken this one —
+it is an architecture decision with a rejected alternative, a shell-free tool image, which
+is exactly the ADR shape) stating that the Nimbopacks tool image intentionally contains
+`bash` because melange pipelines require a shell, that this does not apply to images
+Nimbopacks builds, and that application images produced by the packs must remain
+shell-free by default with a `-dev` variant as the opt-in.
 
 **Residual risk:** accepted. Re-examine if a shell-free melange execution mode appears.
 
@@ -1175,11 +1454,62 @@ findings visible in the report and exclude them from the `--fail-on` gate only, 
 dated review item.
 
 **Residual risk:** per-CVE triage is ongoing work with an SLA (critical 7 days, high 30).
-That is the intended cost.
+That is the intended cost. **Cross-reference:** Surface 6 below names the same capability
+— repository-controlled CVE suppression — as an accepted-by-design risk for every
+*consumer* repository, not only this one; naming both makes the position coherent.
 
 ---
 
-## 9. STRIDE coverage matrix
+## 9. Surface 6 — `nimbopacks update` / the grype invocation path
+
+**STRIDE: Tampering, Information disclosure.**
+
+Added in revision 2 — NIMA-10 pass 3 flagged this as a genuine gap: a surface that was
+simply absent, which reads as "not considered" rather than "considered and accepted."
+
+**Accepted risk, stated explicitly so it reads as a decision.** `internal/update` reads
+`cfg.Update.GrypeConfig` — a `nimpack.yaml` field (`update.grype_config`,
+`types.go:207`) — and passes it to `grype --config <path>` (`update.go:55`,
+`grype.go:101-102`). A grype config can define `ignore` rules, and `update --check`'s exit
+code is a **public contract** the charter names explicitly (`0` clean, `1` at-or-above
+threshold, `2` tool error) — the contract CI pipelines gate merges on. So repository
+content can steer which policy file governs the scan whose exit code gates the merge.
+**This is intended design, not a defect:** `CLAUDE.md` states "CVE matching is grype's
+job... Nimbopacks implements no suppression of its own... Triage goes through
+`.grype.yaml`." A project must be able to triage its own CVEs, and the compensating
+control is that `.grype.yaml` is reviewable source in the consumer's own repository. This
+threat model is not asking to change that design.
+
+### UPD-1 — `update.grype_config` is an unvalidated filesystem path, the one part that is *not* by design
+
+| | |
+|---|---|
+| **Class** | Unvalidated config-supplied filesystem path (CWE-22), exactly parallel to CFG-1 |
+| **STRIDE** | Information disclosure, Tampering |
+| **Severity** | **S2 Low** |
+| **Exploitability** | **E4 Easy** |
+| **Owner** | Security Engineer |
+| **Lenses** | Input handling, Complete Mediation |
+
+Unlike the suppression-by-design capability above, `update.grype_config`'s path has **no
+validation and no `srcDir` containment check** — the same class of defect as CFG-1's
+`ca_cert_paths`, just lower severity because the worst outcome is grype reading or failing
+to read an unexpected file, not exfiltration into a published image. It is strange to
+harden one path field (`ca_cert_paths`) and not the other (`grype_config`) in the same
+codebase, and it is free to fix alongside CFG-1 — same mitigation shape, same
+`config.Validate` call site.
+
+**Phase 1 mitigation.** Add `update.grype_config` containment (resolve + reject anything
+outside `srcDir`, same helper as CFG-1 mitigation 1) to `config.Validate` (CFG-4
+Mitigation A's call site).
+
+**Residual risk:** none for this class once containment is enforced. The accepted
+suppression-by-design risk above is unaffected — this only closes the path-handling gap
+around it.
+
+---
+
+## 10. STRIDE coverage matrix
 
 | Surface | S | T | R | I | D | E |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
@@ -1188,6 +1518,7 @@ That is the intended cost.
 | 3 — TLS / custom CAs | TLS-1, TLS-2 | TLS-1 | — | **TLS-3** | TLS-2 | — |
 | 4 — Container runner | — | RUN-1 | — | — | — | **RUN-1**, RUN-2, RUN-3 |
 | 5 — GitHub Actions | **CI-1**, CI-2 | **CI-1**, CI-3, CI-4, CI-6 | CI-2, CI-4, CI-7 | CI-5, CI-7 | — | **CI-2** |
+| 6 — `update` / grype | — | **UPD-1** | — | UPD-1 | — | — |
 
 Bold = the primary category for that threat. Repudiation is thin across the product
 because a local CLI has no audit log to attack; it appears only where release provenance
@@ -1195,76 +1526,99 @@ is at stake.
 
 ---
 
-## 10. Prioritised remediation list
+## 11. Prioritised remediation list
 
-Ordered by `severity × exploitability`, then by cost to fix. One branch and one PR each.
-Dates assume a 2026-10-23 start and the SLA in `docs/security/README.md` (critical 7 days,
-high 30 days).
+Ordered by `severity × exploitability`, then by cost to fix, **and sequenced explicitly
+within each tranche per NIMA-10**: when a tranche is over-subscribed, the actual execution
+order is otherwise chosen by whoever picks an item first, which silently overrides the
+prioritisation this document just derived. If only the first N of a tranche land, the N
+that land should be the N that were chosen. One branch and one PR each. Dates assume a
+2026-10-23 start and the SLA in `docs/security/README.md` (critical 7 days, high 30 days).
 
-### P0 — Start now
+### P0 — Start now, in this order
 
-| # | Threat | Action | S×E | Owner | Due |
+| Seq | Threat | Action | S×E | Owner | Due |
 |---|---|---|---|---|---|
-| 1 | **TCH-1** | Committed `toolchain.lock` + mandatory SHA-256 verification before install; temp-file-then-rename | S5·E4 | Security Engineer | **2026-10-30** |
-| 2 | **TCH-2** | Exact asset-name allowlist from the lock; delete the substring/denylist matcher | S4·E2 | Security Engineer | **2026-10-30** |
-| 3 | **CFG-1** | `srcDir` containment + mandatory PEM parsing in `LoadCACerts`; flip `inject_into_image` to default **false** | S4·E4 | Security Engineer | **2026-10-30** |
-| 4 | **CI-1** | Pin Wolfi packages by exact version in `wolfi-act`; split push and sign into separate steps | S5·E2 | Security Engineer | **2026-10-30** |
-| 5 | **CI-2** | Ancestor-of-`main` guard in `release.yml` (repo side) **+ Board: tag protection ruleset on `v*`** | S5·E3 | Security Eng + **Board** | **2026-10-30** |
+| 1 | **`tlsutil` split** | Move `MelangeEnvVars`/`ImageCACertInstallStep`/the `${{ }}` tokens to `pkg/backend/wolfi/`; keep path containment, PEM parsing, and bundle/fingerprint logic in `internal/utils/tlsutil.go` (TLS-2 mitigation 1) | n/a — architecture prerequisite | Security Engineer | **2026-10-24** |
+| 2 | **CFG-4** | Call `config.Validate` from `pipeline.Build` and `update.Run` (Mitigation A); add a 1 MiB cap and a `schema_version` check. The cheapest item in the list and the precondition for items 7, 8, and 17 below — ranked by what it unblocks, not by its own score | S3·E5 | Security Engineer | **2026-10-25** |
+| 3 | **CFG-1** | `srcDir` containment + mandatory PEM parsing in `LoadCACerts` (lands on the split from item 1); flip `inject_into_image` to default **false** with the `nil`-state warning (ADR-0002) | S4·E4 | Security Engineer | **2026-10-27** |
+| 4 | **TCH-1** | `toolchain.lock` committed as `go:embed` at `internal/toolchain/toolchain.lock`, never CWD-resolved; mandatory SHA-256 verification before install; temp-file-then-rename; `fetchVerified` preserves the no-token-to-CDN split | S5·E4 | Security Engineer | **2026-10-28** |
+| 5 | **TCH-2** | Exact asset-name allowlist keyed off the same lock; delete the substring/denylist matcher | S4·E2 | Security Engineer | **2026-10-29** |
+| 6 | **CI-1** | Pin Wolfi packages by exact version in `wolfi-act`; split push and sign into separate steps | S5·E2 | Security Engineer | **2026-10-30** |
+| 7 | **CI-2** | Ancestor-of-`main` guard in `release.yml` (repo side) **+ Board: tag protection ruleset on `v*`** | S5·E3 | Security Eng + **Board** | **2026-10-30** |
 
 ### P1 — Within 30 days
 
 | # | Threat | Action | S×E | Owner | Due |
 |---|---|---|---|---|---|
-| 6 | **CFG-4** | Call `config.Validate` from `pipeline.Build` and `update.Run`; add `KnownFields(true)`, a 1 MiB cap, and a `schema_version` check | S3·E5 | Security Engineer | 2026-11-22 |
-| 7 | **CFG-2** | `project.name` charset validation (`^[a-z0-9][a-z0-9._-]{0,62}$`) | S4·E3 | Security Engineer | 2026-11-22 |
-| 8 | **CFG-3** | `project.version` charset validation; reject `${{`; fuzz `config.Load` | S3·E3 | Security Engineer | 2026-11-22 |
-| 9 | **RUN-1** | Remove the silent docker fallback; require explicit `--runner docker` | S4·E4 | Principal Architect + Security Engineer | 2026-11-22 |
-| 10 | **TLS-1** | Remove `tls.insecure` from `nimpack.yaml`; hard-fail on it meanwhile; delete or wire `NewTLSConfig` | S3·E5 | Security Engineer | 2026-11-22 |
-| 11 | **CI-6** | Land `security/pin-github-actions`, `security/ci-govulncheck`, `security/ci-gitleaks`; add `harden-runner` (audit) and `gosec` | S4·E2 | Security Engineer | 2026-11-22 |
-| 12 | **TLS-3** | Move the CA bundle to the work dir at `0600`; `.gitignore` entry; signal-safe cleanup | S3·E3 | Security Engineer | 2026-11-22 |
-| 13 | **CI-3** | Charset-validate sample names; heredoc `$GITHUB_OUTPUT` write | S3·E4 | Security Engineer | 2026-11-22 |
-| 14 | **CI-4** | Add `.github/CODEOWNERS`; **Board: enable required Code Owner review** | S3·E5 | Security Eng + **Board** | 2026-11-22 |
-| 15 | **CI-7** | Replace the blanket `fix-state: unknown` rule with per-CVE entries + OpenVEX docs | S3·n/a | Security Engineer | 2026-11-22 |
+| 8 | **CFG-2** | `project.name` charset validation (`^[a-z0-9][a-z0-9._-]{0,62}$`) **shipped with generate-time normalisation in `cmd/nimbopacks/main.go`** — the charset alone regresses `init` → `build` | S4·E3 | Security Engineer | 2026-11-22 |
+| 9 | **CFG-3** | `project.version` charset validation, replaced regex `^[0-9]+(\.[0-9]+){0,3}$`; reject `${{`; fuzz `config.Load`. **Land after item 10 (RUN-1)** — RUN-1 is a severity multiplier for this item | S3·E3 | Security Engineer | 2026-11-22 |
+| 10 | **RUN-1** | Remove the silent docker fallback; require explicit `--runner docker`; make the valid `--runner` set backend-supplied, not hardcoded in `cmd/` | S4·E4 | Principal Architect + Security Engineer | 2026-11-22 |
+| 11 | **TLS-1** | Remove `tls.insecure` from `nimpack.yaml` via the four-step sequence against CFG-4's `KnownFields(true)`; wire `NewTLSConfig` after removal | S3·E5 | Security Engineer | 2026-11-22 |
+| 12 | **CI-6** | Land `security/pin-github-actions`, `security/ci-govulncheck`, `security/ci-gitleaks`; add `harden-runner` (audit) and `gosec` | S4·E2 | Security Engineer | 2026-11-22 |
+| 13 | **TLS-3** | Move the CA bundle to the **per-build work dir** (`cache.NewBuildWorkDir()`) at `0600`, never `CacheDir()`'s shared root; confirm `cache clean` removes it; `.gitignore` entry; signal-safe cleanup | S3·E3 | Security Engineer | 2026-11-22 |
+| 14 | **CI-3** | Charset-validate sample names; heredoc `$GITHUB_OUTPUT` write | S3·E4 | Security Engineer | 2026-11-22 |
+| 15 | **CI-4** | Add `.github/CODEOWNERS`; **Board: enable required Code Owner review** | S3·E5 | Security Eng + **Board** | 2026-11-22 |
+| 16 | **CI-7** | Replace the blanket `fix-state: unknown` rule with per-CVE entries + OpenVEX docs | S3·n/a | Security Engineer | 2026-11-22 |
+| 17 | **UPD-1** | `update.grype_config` containment check, same helper as CFG-1 mitigation 1. Trivial to pair with item 3 (CFG-1) since it is the same mitigation shape and the same `config.Validate` call site | S2·E4 | Security Engineer | 2026-11-22 |
 
 ### P2 — Backlog, scheduled
 
 | # | Threat | Action | S×E | Owner | Target |
 |---|---|---|---|---|---|
-| 16 | **TLS-2** | Append custom CAs to system roots in the sandbox instead of overriding `SSL_CERT_FILE`; route toolchain downloads through `NewTLSConfig` (**after** item 10) | S3·E4 | Security Engineer | 2026-12-15 |
-| 17 | **TCH-1 ph.2** | cosign keyless verification + SLSA provenance for melange/apko/grype | S5·E2 | Security Engineer | 2026-12-15 |
-| 18 | **CI-5** | `persist-credentials: false` on all non-pushing checkouts | S2·E4 | Security Engineer | 2026-12-15 |
-| 19 | **TCH-3** | Client timeout, tar entry cap, lower `maxBinaryBytes`; regression test locking in the existing traversal defence | S2·E2 | Security Engineer | 2026-12-15 |
-| 20 | **RUN-2** | Gate the sysctl on `runner.environment == 'github-hosted'`; document the self-hosted guidance | S2·E5 | Security Engineer | 2026-12-15 |
-| 21 | **RUN-3** | ADR recording why the tool image ships `bash` and why that does not apply to produced images | S2·E1 | CTO + Security Engineer | 2026-12-15 |
+| 18 | **TLS-2** | Append custom CAs to system roots in the sandbox (`update-ca-certificates`, emitted from `pkg/backend/wolfi/` per item 1) instead of overriding `SSL_CERT_FILE`; route toolchain downloads through `NewTLSConfig` (**after** item 11) | S3·E4 | Security Engineer | 2026-12-15 |
+| 19 | **TCH-1 ph.2** | cosign keyless verification + SLSA provenance for melange/apko/grype | S5·E2 | Security Engineer | 2026-12-15 |
+| 20 | **CI-5** | `persist-credentials: false` on all non-pushing checkouts | S2·E4 | Security Engineer | 2026-12-15 |
+| 21 | **TCH-3** | Client timeout, tar entry cap, lower `maxBinaryBytes`; regression test locking in the existing traversal defence | S2·E2 | Security Engineer | 2026-12-15 |
+| 22 | **RUN-2** | Gate the sysctl on `runner.environment == 'github-hosted'`; document the self-hosted guidance | S2·E5 | Security Engineer | 2026-12-15 |
+| 23 | **RUN-3** | ADR recording why the tool image ships `bash` and why that does not apply to produced images | S2·E1 | CTO + Security Engineer | 2026-12-15 |
 
 ### Board-only items (cannot be done by an agent)
 
-- Tag protection ruleset on `v*` (item 5).
-- Branch protection on `main`: required CODEOWNERS review, required status checks, signed
-  commits, linear history, no force pushes (items 5, 14).
-- Push authorisation for the three pending `security/*` branches (item 11).
+- **Tag protection ruleset on `v*`** (item 7) — requested 2026-10-23, still pending. Of
+  limited value on its own: the repo-side ancestor guard in item 7 does not substitute for
+  it.
+- **Branch protection on `main`** — required CODEOWNERS review, required status checks,
+  signed commits, linear history, no force pushes (items 7, 15) — requested 2026-10-23,
+  still pending. CODEOWNERS (item 15) does nothing without "require review from Code
+  Owners" enabled.
+- **Push authorisation.** Resolved 2026-10-23: the Board ruled that host `gh` auth may be
+  used directly, no separate bot identity is required. This threat-model PR and the three
+  pending `security/*` CI branches (`pin-github-actions`, `ci-govulncheck`, `ci-gitleaks`)
+  use it accordingly.
+
+Both still-pending asks should be tracked independently of the agent-side P0/P1 work above
+— Board turnaround is not on the team's schedule, and bundling them implicitly with
+agent-owned items risks the Board items being forgotten once the agent-owned items close.
 
 ---
 
-## 11. Verification gaps in this revision
+## 12. Verification gaps in this revision
 
 Stated plainly so the next revision knows what to close:
 
 1. **No Docker in this environment.** Nothing requiring melange, apko, a grype scan, or an
-   image build could be executed. CFG-1's final hop (bytes present in the image layer),
-   CFG-3's expansion semantics, and RUN-1's actual docker-runner privilege level all rest
-   on code reading plus documented upstream behaviour, not on execution. Each is flagged
-   in place.
+   image build could be executed. CFG-1's final hop, CFG-3's second-order expansion
+   semantics, and RUN-1's actual docker-runner privilege level all rest on code reading
+   plus documented upstream behaviour, not on execution. Each is flagged in place.
+   **Independently reviewed in NIMA-10:** CFG-1's last hop is sound and stronger than
+   originally rated — the only `AppendCertsFromPEM` in the tree is unreachable dead code,
+   confirmed by `grep`, so the claim is not an inference. RUN-1 is correctly scoped and not
+   overstated — declining to claim container escape and instead claiming only the silent
+   control downgrade was the right call under this environment's constraints. CFG-3's
+   second-order half (melange re-expanding a literal `${{` inside the version) remains
+   genuinely unverified and is now split from its confirmed first-order half (§4) so the
+   uncertainty does not spread to the stronger claim.
 2. **No live testing against the public repository.** CI-3 was traced statically; opening
    a crafted PR to prove it would be unauthorised testing.
-3. **melange's source was not audited.** The `${{ }}` expansion rules (CFG-3) and the
-   docker runner's container configuration (RUN-1) are upstream behaviour. A follow-up
-   should read melange's expansion implementation directly.
+3. **melange's source was not audited.** The second-order `${{ }}` expansion rules
+   (CFG-3) and the docker runner's container configuration (RUN-1) are upstream behaviour.
+   A follow-up should read melange's expansion implementation directly.
 4. **`internal/remote/` is unwritten** and therefore unmodelled (§1.2).
-5. **No fuzzing was run.** `go test -fuzz` targets over `config.Load` and
-   `normalizeVersion` are proposed in items 6 and 8 but have not been executed.
+5. **No fuzzing was run.** `go test -fuzz` targets over `config.Load` and the generate-time
+   name normaliser are proposed in items 8 and 9 of §11 but have not been executed.
 
-## 12. Review and maintenance
+## 13. Review and maintenance
 
 - **Review cadence:** every minor release, and on any change to a §1.1 surface.
 - **Security sign-off** is required on PRs touching `internal/toolchain`,
@@ -1272,3 +1626,11 @@ Stated plainly so the next revision knows what to close:
   CODEOWNERS and branch protection land.
 - **Next revision must add:** `internal/remote/` when it exists; the registry push path;
   anything that introduces a network listener or an auth surface (which voids §1.3).
+- **ADRs owned by the Principal Architect, tracked from this document (NIMA-10):**
+  ADR-0001 (backend-abstraction baseline) will cite this document for the `tlsutil`
+  Wolfi leak (TLS-2) and for `--runner` as a Wolfi concept in the CLI surface (RUN-1);
+  ADR-0002 will cover the `types.TLSConfig` changes (CFG-1, TLS-1, TLS-2) as one set; a
+  separate short ADR covers RUN-3. The named trust principle (§2.1) and the
+  `project.name` three-grammar overload (CFG-2) both carry into `docs/spec/nimpack-v1.md`
+  as normative text, with `image.repository` recorded there as a known v2 gap. §4.1's
+  schema-mutability window closes the day that spec lands.
