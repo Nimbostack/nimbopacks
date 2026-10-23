@@ -17,7 +17,7 @@ build:
     - openjdk-21
     - maven
     - build-base
-  env:
+  options:
     JAR_DIR: target
 
 image:

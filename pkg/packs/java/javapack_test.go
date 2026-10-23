@@ -209,8 +209,8 @@ func TestGenerateConfig_Maven(t *testing.T) {
 	if cfg.Build.Command != "mvn package -DskipTests" {
 		t.Errorf("unexpected Maven command: %s", cfg.Build.Command)
 	}
-	if cfg.Build.Env["JAR_DIR"] != "target" {
-		t.Errorf("expected JAR_DIR=target, got %q", cfg.Build.Env["JAR_DIR"])
+	if cfg.Build.Options["JAR_DIR"] != "target" {
+		t.Errorf("expected JAR_DIR=target, got %q", cfg.Build.Options["JAR_DIR"])
 	}
 	hasMaven := false
 	for _, d := range cfg.Build.Dependencies {
@@ -239,8 +239,8 @@ func TestGenerateConfig_Gradle(t *testing.T) {
 	if cfg.Build.Command != "./gradlew build -x test" {
 		t.Errorf("unexpected Gradle command: %s", cfg.Build.Command)
 	}
-	if cfg.Build.Env["JAR_DIR"] != "build/libs" {
-		t.Errorf("expected JAR_DIR=build/libs, got %q", cfg.Build.Env["JAR_DIR"])
+	if cfg.Build.Options["JAR_DIR"] != "build/libs" {
+		t.Errorf("expected JAR_DIR=build/libs, got %q", cfg.Build.Options["JAR_DIR"])
 	}
 	for _, d := range cfg.Build.Dependencies {
 		if d == "gradle" {

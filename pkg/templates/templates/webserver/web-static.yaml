@@ -16,7 +16,7 @@ build:
   # If you need a build step, add:
   # command: "npm ci && npm run build"
   # dependencies: [nodejs-20, npm, build-base]
-  env:
+  options:
     OUTPUT_DIR: "."  # Directory containing index.html
 
 image:
