@@ -14,6 +14,15 @@ Write an ADR when a change:
 Do not write an ADR for a bug fix, a refactor with no contract change, or a new pack
 that uses the existing extension points.
 
+## Index
+
+| # | Title | Status |
+|---|---|---|
+| [0003](0003-dead-field-disposition.md) | Disposition the seven parsed-and-ignored `nimpack.yaml` fields before the v1 freeze | Proposed |
+
+ADR-0001 (backend abstraction) and ADR-0002 (`schema_version` + compatibility policy)
+are in flight on their own branches; add them to this index when they merge.
+
 ## Rules
 
 - Numbers run in order and are never reused or renumbered.

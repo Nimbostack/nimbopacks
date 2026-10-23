@@ -32,6 +32,11 @@ image digest for existing configs and is therefore a breaking change by our own
 definition (§4). The disposition of those six fields must be decided *before*
 the spec is written, not after.
 
+**Update 2026-10-23:** that disposition is drafted in
+[ADR-0003](../adr/0003-dead-field-disposition.md). Three of the seven items are
+architect calls and are decided; four are product calls and are pending CTO /
+Board sign-off. §3 below records the per-field outcome.
+
 ---
 
 ## 1. Field inventory — the `nimpack.yaml` surface
@@ -163,22 +168,26 @@ Also excluded: `backend.BuildOpts/BuildResult/ImageOpts/ImageResult/Capabilities
 Each is file + field + exactly what is unclear. **D** = needs a product/owner
 decision; **A** = architect can resolve and record.
 
-| # | File:line | Field | What is unclear | Kind |
-|---|---|---|---|---|
-| A1 | `types.go:17`, `config.go:18` | `schema_version` | No validation exists. Is it required? What does the loader do on `"2"`, on `"1.0"`, on absent? Today: all three are accepted and ignored. | **A** |
-| A2 | `types.go:98` | `build.context` | Dead field. Does v1 ship it as a promise (and implement it), reserve it, or delete it? Deleting breaks any config that already sets it; implementing changes the digest of any config that already sets it. | **D** |
-| A3 | `types.go:118` | `image.labels` | Dead field, and `ApkoConfig` has no annotations support, so implementing it is a backend change, not a schema change. | **D** |
-| A4 | `types.go:121` | `image.ports` | Dead field **that we actively generate into 22 of 23 templates**. Users will reasonably read this as `EXPOSE`. Highest-exposure item in this report. | **D** |
-| A5 | `types.go:196` | `update.auto_check` | Dead, *and* its documented default (`true`) is the opposite of its zero value (`false`). If it ever becomes live, every config that omits it flips meaning. Should be `*bool` like `inject_into_image`. | **D** |
-| A6 | `types.go:199` | `update.repositories` | Dead. Also Wolfi-shaped ("additional Wolfi repos") in a backend-agnostic schema. | **A** |
-| A7 | `types.go:85` | `build.template` | Dead, and its comment promises a feature (`update` pulls template updates) that does not exist. | **A** |
-| A8 | `types.go:94` | `build.env` | Documented as build environment variables; implemented as a per-pack keyword channel. Either implement it as real melange env (changes digests) or rename/narrow it. Unknown keys are silently dropped — no error, no warning. | **D** |
-| A9 | `types.go:115`, `pack.go:177` | `image.run_as` | `uint32` + `!= 0` guard means `run_as: 0` cannot be expressed. Is root deliberately unrepresentable (defensible) or an accident? If deliberate, the spec must say so; if not, the type must become `*uint32`. | **A** |
-| A10 | `types.go:159` | `image.layering.strategy` | Free string with exactly one legal value and no validation. Should be an enum. Adding the enum later rejects configs that are accepted today → breaking. | **A** |
-| A11 | `types.go:174` | `image.layering.budget` | No `omitempty`, so a block with only `strategy` emits `budget: 0`. Is `0` "no extra layers", "apko default", or invalid? Unspecified on our side. | **A** |
-| A12 | `types.go:129` vs `backend.go:67` | `image.layering` absent | The two comments disagree: `types.go` says absent ⇒ "single layer (legacy behavior)"; `backend.go` says `nil` ⇒ "apko default (auto multi-layer)". One of them is wrong and it determines the digest of every image built without a `layering:` block. **Cannot be settled without a build — Docker is unavailable.** | **A**, blocked |
-| A13 | `types.go:187`, `dotnetpack.go:248` | `artifacts[].dest` | Comment says image path; dotnet treats it as a suffix of the staging dir and requires a leading `/`; go ignores it. Three behaviours, one field. | **A** |
-| A14 | `types.go:202`, `update.go:218` | `update.pinned` | Comment says pinned packages "won't be updated"; implementation only tags the report and still fails `--check`. Since exit codes are a public contract, this is the gap most likely to surprise a CI consumer. | **D** |
+**Status column** added 2026-10-23: A1–A7 are dispositioned in
+[ADR-0003](../adr/0003-dead-field-disposition.md); A8 and A14 carry a
+recommendation there for the same sign-off round; A9–A13 move to ADR-0004.
+
+| # | File:line | Field | What is unclear | Kind | Resolved in |
+|---|---|---|---|---|---|
+| A1 | `types.go:17`, `config.go:18` | `schema_version` | No validation exists. Is it required? What does the loader do on `"2"`, on `"1.0"`, on absent? Today: all three are accepted and ignored. | **A** | **ADR-0003 — Implement** (validate, warn-then-error ramp). Decided: Principal Architect. |
+| A2 | `types.go:98` | `build.context` | Dead field. Does v1 ship it as a promise (and implement it), reserve it, or delete it? Deleting breaks any config that already sets it; implementing changes the digest of any config that already sets it. | **D** | **ADR-0003 — Delete** (proposed; pending CTO/Board) |
+| A3 | `types.go:118` | `image.labels` | Dead field, and `ApkoConfig` has no annotations support, so implementing it is a backend change, not a schema change. | **D** | **ADR-0003 — Implement** as OCI annotations (proposed; pending CTO/Board) |
+| A4 | `types.go:121` | `image.ports` | Dead field **that we actively generate into 22 of 23 templates**. Users will reasonably read this as `EXPOSE`. Highest-exposure item in this report. | **D** | **ADR-0003 — Implement** as OCI `ExposedPorts` (proposed; pending CTO/Board; apko capability unverified) |
+| A5 | `types.go:196` | `update.auto_check` | Dead, *and* its documented default (`true`) is the opposite of its zero value (`false`). If it ever becomes live, every config that omits it flips meaning. Should be `*bool` like `inject_into_image`. | **D** | **ADR-0003 — Delete** (proposed; pending CTO/Board) |
+| A6 | `types.go:199` | `update.repositories` | Dead. Also Wolfi-shaped ("additional Wolfi repos") in a backend-agnostic schema. | **A** | **ADR-0003 — Delete**. Decided: Principal Architect. |
+| A7 | `types.go:85` | `build.template` | Dead, and its comment promises a feature (`update` pulls template updates) that does not exist. | **A** | **ADR-0003 — Reserve** (informational provenance, normatively non-behavioural). Decided: Principal Architect. |
+| A8 | `types.go:94` | `build.env` | Documented as build environment variables; implemented as a per-pack keyword channel. Either implement it as real melange env (changes digests) or rename/narrow it. Unknown keys are silently dropped — no error, no warning. | **D** | ADR-0003 "Adjacent product calls" — recommend *document the keyword channel, warn on unknown keys* (pending CTO/Board) |
+| A9 | `types.go:115`, `pack.go:177` | `image.run_as` | `uint32` + `!= 0` guard means `run_as: 0` cannot be expressed. Is root deliberately unrepresentable (defensible) or an accident? If deliberate, the spec must say so; if not, the type must become `*uint32`. | **A** | ADR-0004 (open) |
+| A10 | `types.go:159` | `image.layering.strategy` | Free string with exactly one legal value and no validation. Should be an enum. Adding the enum later rejects configs that are accepted today → breaking. | **A** | ADR-0004 (open) |
+| A11 | `types.go:174` | `image.layering.budget` | No `omitempty`, so a block with only `strategy` emits `budget: 0`. Is `0` "no extra layers", "apko default", or invalid? Unspecified on our side. | **A** | ADR-0004 (open) |
+| A12 | `types.go:129` vs `backend.go:67` | `image.layering` absent | The two comments disagree: `types.go` says absent ⇒ "single layer (legacy behavior)"; `backend.go` says `nil` ⇒ "apko default (auto multi-layer)". One of them is wrong and it determines the digest of every image built without a `layering:` block. **Cannot be settled without a build — Docker is unavailable.** | **A**, blocked | **Open.** Recorded in ADR-0003 "Open items" and handed to whoever has a build environment; lands in ADR-0004. |
+| A13 | `types.go:187`, `dotnetpack.go:248` | `artifacts[].dest` | Comment says image path; dotnet treats it as a suffix of the staging dir and requires a leading `/`; go ignores it. Three behaviours, one field. | **A** | ADR-0004 (open) |
+| A14 | `types.go:202`, `update.go:218` | `update.pinned` | Comment says pinned packages "won't be updated"; implementation only tags the report and still fails `--check`. Since exit codes are a public contract, this is the gap most likely to surprise a CI consumer. | **D** | ADR-0003 "Adjacent product calls" — recommend *document current behaviour, do not change `MeetsThreshold`* (pending CTO/Board). Needs its own ADR if the answer is anything else. |
 
 Secondary findings worth recording but not blocking the schema freeze:
 
@@ -245,6 +254,18 @@ breaking *silently*, with no parse error to warn the user. These six fields
 reserved-and-ignored in the normative text — because after the freeze each of
 them costs a major version to fix.
 
+**Leniency corollary to criterion 1** (added 2026-10-23 by
+[ADR-0003](../adr/0003-dead-field-disposition.md); promote into
+`COMPATIBILITY.md` when §4 goes normative): because `config.go:46` decodes
+without `KnownFields`, **deleting a field that no production code reads has no
+observable effect on any existing config** — the key keeps parsing into nothing,
+the `BuildPlan` is unchanged, and the digest is unchanged. Such a deletion is
+therefore **non-breaking**, subject to two conditions: **(a)** it holds only
+while decoding is lenient, so if strict decoding ever lands (itself breaking
+under criterion 2) that change's migration note MUST re-enumerate every key
+deleted under this corollary; and **(b)** it does not extend to any field that
+production code reads, where criterion 1 applies unchanged.
+
 A change is **non-breaking** if it is none of 1–7, which in practice means:
 
 - A new optional field whose zero value reproduces today's behaviour exactly.
@@ -303,7 +324,7 @@ Reviewers paste this into any PR touching `internal/types/`:
 
 | Workstream | Output | Effort | Blocks on |
 |---|---|---|---|
-| 1. Resolve the 14 ambiguities | ADR-0002 (`schema_version` + compatibility policy), ADR-0003 (disposition of the six dead fields), ADR-0004 (`LayeringConfig` decoupling from apko) | **2.0 d** | 6 of 14 are product calls (A2–A5, A8, A14) → CTO / Engineering Lead |
+| 1. Resolve the 14 ambiguities | ADR-0002 (`schema_version` + compatibility policy), [ADR-0003](../adr/0003-dead-field-disposition.md) (disposition of the dead fields — **drafted 2026-10-23**, architect calls decided, product calls pending sign-off), ADR-0004 (`LayeringConfig` decoupling from apko; also absorbs A9–A13) | **2.0 d** | 6 of 14 are product calls (A2–A5, A8, A14) → CTO / Board |
 | 2. Normative text | `docs/spec/nimpack-v1.md`, RFC 2119, 31 fields, one example per section | **1.5 d** | Workstream 1 |
 | 3. JSON Schema | `docs/spec/nimpack.schema.json` + a `task spec-validate` target that validates every template and every sample against it | **1.0 d** | Workstream 2 |
 | 4. Conformance tests | Table-driven tests in `internal/types` and `internal/config` that pin defaults, zero-value semantics, and round-trips; targets `internal/pack.ApplyConfig`, which implements the override semantics for six fields at **0% coverage** today | **1.5 d** | Can start in parallel with 2 |
