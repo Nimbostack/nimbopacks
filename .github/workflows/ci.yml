@@ -17,6 +17,15 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
+      # AUDIT MODE ONLY. This logs outbound network calls (to the job summary
+      # and, if a free StepSecurity account is linked, to their dashboard) but
+      # blocks nothing. See the PR description for why: there is no egress
+      # baseline for this repo yet, and flipping straight to `egress-policy:
+      # block` without one risks breaking every PR the moment a tool resolves
+      # an unlisted host.
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-go@v5
         with:
@@ -35,6 +44,10 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
+      # audit-mode only; see the comment in the lint job above.
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-go@v5
         with:
@@ -48,6 +61,10 @@ jobs:
     needs: lint
     runs-on: ubuntu-latest
     steps:
+      # audit-mode only; see the comment in the lint job above.
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-go@v5
         with:
