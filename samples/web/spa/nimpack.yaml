@@ -12,7 +12,7 @@ build:
     - nodejs-20
     - npm
     - build-base
-  env:
+  options:
     OUTPUT_DIR: dist
 
 image:
@@ -22,8 +22,3 @@ image:
     - nginx
     - ca-certificates-bundle
   run_as: 65532
-  ports:
-    - "8080"
-
-update:
-  auto_check: true

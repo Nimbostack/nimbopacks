@@ -7,7 +7,7 @@ project:
 build:
   pack: web
   template: web-static
-  env:
+  options:
     OUTPUT_DIR: "."
 
 image:
@@ -17,8 +17,3 @@ image:
     - nginx
     - ca-certificates-bundle
   run_as: 65532
-  ports:
-    - "8080"
-
-update:
-  auto_check: true

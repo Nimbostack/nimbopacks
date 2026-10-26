@@ -157,3 +157,43 @@ func TestMeetsThreshold(t *testing.T) {
 		t.Error("'none' threshold should never trigger")
 	}
 }
+
+func TestMeetsThreshold_ExcludesPinnedPackages(t *testing.T) {
+	pinnedCritical := types.PackageUpdate{Package: "openssl", Severity: "Critical", CVEs: []string{"CVE-2024-001"}, Pinned: true}
+	unpinnedHigh := types.PackageUpdate{Package: "curl", Severity: "High", CVEs: []string{"CVE-2024-002"}, Pinned: false}
+
+	onlyPinned := &types.UpdateReport{Packages: []types.PackageUpdate{pinnedCritical}}
+	if MeetsThreshold(onlyPinned, "critical") {
+		t.Error("a pinned package's CVE must not contribute to the exit-code threshold")
+	}
+	if MeetsThreshold(onlyPinned, "low") {
+		t.Error("a pinned package's CVE must not contribute to the exit-code threshold, even at a low bar")
+	}
+
+	mixed := &types.UpdateReport{Packages: []types.PackageUpdate{pinnedCritical, unpinnedHigh}}
+	if !MeetsThreshold(mixed, "high") {
+		t.Error("an unpinned finding must still trigger the threshold even when a pinned finding is also present")
+	}
+
+	// The finding itself must still be present in the report regardless of pin status —
+	// only its contribution to the exit code is suppressed.
+	if len(onlyPinned.Packages) != 1 || !onlyPinned.Packages[0].Pinned {
+		t.Error("pinned finding must remain in the report, not be removed")
+	}
+}
+
+func TestValidFailOn(t *testing.T) {
+	valid := []string{"critical", "high", "medium", "low", "none", "Critical", "HIGH"}
+	for _, v := range valid {
+		if !ValidFailOn(v) {
+			t.Errorf("ValidFailOn(%q) = false, want true", v)
+		}
+	}
+
+	invalid := []string{"criticl", "", "urgent", "hihg"}
+	for _, v := range invalid {
+		if ValidFailOn(v) {
+			t.Errorf("ValidFailOn(%q) = true, want false", v)
+		}
+	}
+}

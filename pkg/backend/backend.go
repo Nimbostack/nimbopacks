@@ -64,7 +64,7 @@ type ImageOpts struct {
 	OutputDir string
 	Push      bool
 	TLS       types.TLSConfig
-	Layering  *types.LayeringConfig // nil = apko default (auto multi-layer)
+	Layering  *types.LayeringConfig // nil = apko default (single layer, legacy behavior)
 }
 
 // ImageResult is the output of AssembleImage.
@@ -140,6 +140,7 @@ type Capabilities struct {
 	AtomicPatching bool // Can update single packages without full rebuild
 	Sandboxed      bool // Build runs in a sandbox (bubblewrap/container)
 	NoExternalDeps bool // Runs with zero external tool installs
+	ExposedPorts   bool // Can express image.ports as exposed-port image metadata
 }
 
 // GetCapabilities returns what each backend supports.
@@ -153,6 +154,7 @@ func GetCapabilities(name string) Capabilities {
 			AtomicPatching: true,
 			Sandboxed:      true,
 			NoExternalDeps: false, // Needs melange + apko (auto-installable)
+			ExposedPorts:   false, // apko's ImageConfiguration has no exposed-ports input key
 		}
 	default:
 		return Capabilities{}

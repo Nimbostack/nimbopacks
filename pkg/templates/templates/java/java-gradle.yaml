@@ -13,7 +13,7 @@ build:
   pack: java
   template: java-gradle
   command: "./gradlew build -x test"
-  env:
+  options:
     # Gradle writes the built jar to build/libs (Maven uses target/).
     JAR_DIR: build/libs
   dependencies:
@@ -30,8 +30,3 @@ image:
     JAVA_HOME: /usr/lib/jvm/java-21-openjdk
     JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
   run_as: 65532
-  ports:
-    - "8080"
-
-update:
-  auto_check: true

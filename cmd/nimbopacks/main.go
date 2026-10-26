@@ -592,6 +592,10 @@ Cache the grype vulnerability DB in CI:
 			}
 			dbCachePath := os.Getenv("NIMBOPACKS_GRYPE_DB_CACHE")
 
+			if check && !update.ValidFailOn(failOn) {
+				return fmt.Errorf("invalid --fail-on value %q: must be one of critical, high, medium, low, none", failOn)
+			}
+
 			opts := update.CheckOptions{
 				SourceDir:   srcDir,
 				ConfigPath:  cfgFile,

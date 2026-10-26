@@ -7,7 +7,7 @@ project:
 build:
   pack: golang
   template: go
-  env:
+  options:
     CGO_ENABLED: "0"
     GOFLAGS: "-trimpath"
 
@@ -18,8 +18,3 @@ image:
   env:
     PORT: "8080"
   run_as: 65532
-  ports:
-    - "8080"
-
-update:
-  auto_check: true

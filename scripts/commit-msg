@@ -1,23 +1,99 @@
 #!/usr/bin/env bash
-# Validates commit messages against the conventional commits format.
+# Validates a commit message before it is recorded.
 # Install via: task hooks
+#
+# Four rules, in the order a reader meets them:
+#   1. Conventional Commits subject, within 72 characters, no trailing full stop.
+#   2. No internal work-item keys or board links: this repository is public, and a reader
+#      cannot resolve them. Describe the change instead; the ticket already holds its own.
+#      In-repo identifiers are not keys: ADR-0004, CVE-2024-1234 and SHA-256 are named by
+#      the same shape, so those prefixes are exempt.
+#   3. A body that explains why, when the commit is not a one-line change.
+#   4. The team co-authorship trailer on automation-authored commits. Detected from the
+#      committer address (anything @nimbostack.*) or NP_AGENT_COMMIT=1, so an outside
+#      contributor is never asked for it. A human on our own domains can opt out with
+#      NP_HUMAN_COMMIT=1.
+#
+# Never use --no-verify to bypass a rule you disagree with: change this file in its own
+# commit, so the rule and the reason stay together.
 
-commit_regex='^(feat|chore|docs|fix|refactor|ci)(\(.+\))?: .+'
-msg=$(head -1 "$1")
+set -uo pipefail
 
-if ! echo "$msg" | grep -qP "$commit_regex"; then
-  echo ""
-  echo "ERROR: commit message does not follow the conventional commits format."
-  echo ""
-  echo "  Expected: <type>[optional scope]: <description>"
-  echo "  Allowed types: feat, chore, docs, fix, refactor, ci"
-  echo ""
-  echo "  Examples:"
-  echo "    feat: add golang pack"
-  echo "    fix(toolchain): handle missing melange binary"
-  echo "    docs: update contributing guide"
-  echo ""
-  echo "  Got: $msg"
-  echo ""
+msg_file=${1:-}
+[ -n "$msg_file" ] && [ -f "$msg_file" ] || { echo "commit-msg: no message file"; exit 1; }
+
+subject=$(sed '/^#/d' "$msg_file" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' | head -1)
+body=$(sed '/^#/d' "$msg_file" | tail -n +2)
+
+case $subject in
+  "Merge "*|"Revert "*|"fixup! "*|"squash! "*|"amend! "*) exit 0 ;;
+esac
+
+die() {
+  printf '\ncommit-msg: %s\n' "$1" >&2
+  shift
+  for line in "$@"; do printf '  %s\n' "$line" >&2; done
+  printf '\n  See CONTRIBUTING.md "Commit Messages".\n\n' >&2
   exit 1
+}
+
+# 1. Conventional Commits.
+types='feat|fix|chore|docs|test|ci|refactor|perf|build|revert'
+if ! printf '%s' "$subject" | grep -qE "^($types)(\([a-z0-9][a-z0-9./_-]*\))?: [a-zA-Z0-9]"; then
+  die "subject is not a Conventional Commit." \
+    "got:      $subject" \
+    "expected: <type>(<scope>): <description>" \
+    "types:    feat fix chore docs test ci refactor perf build revert" \
+    "example:  fix(toolchain): handle a missing melange binary"
 fi
+
+len=${#subject}
+[ "$len" -le 72 ] || die "subject is $len characters; the limit is 72." \
+  "got: $subject" "Move the detail into the body."
+
+case $subject in
+  *.) die "subject ends with a full stop." "got: $subject" ;;
+esac
+
+[ -n "$(printf '%s' "$subject" | sed 's/.*: //')" ] || die "subject has no description."
+
+# 2. Nothing an outside reader cannot resolve.
+keys=$(printf '%s\n%s\n' "$subject" "$body" \
+  | grep -oE '[A-Z]{2,5}-[0-9]{1,5}' | sort -u \
+  | grep -vE '^(ADR|SHA|UTF|ISO|RFC|TLS|AES|HTTP|ES|GPL|CVE|ASN|SBOM|OCI|APK|X)-' || true)
+links=$(printf '%s\n%s\n' "$subject" "$body" \
+  | grep -nE '/(NIMA|HOO|PAP)/issues/|paperclip|/home/[a-z]+/' || true)
+if [ -n "$keys" ] || [ -n "$links" ]; then
+  if [ -n "$keys" ]; then
+    die "the message cites internal work-item keys: $(printf '%s' "$keys" | tr '\n' ' ')" \
+      "This repository is public; those keys resolve only inside our board." \
+      "Say what changed and why instead."
+  fi
+  die "the message points at something only we can open." \
+    "$links" \
+    "Board links, board tooling and private paths do not belong in a commit."
+fi
+
+# 3. Trailer on automation-authored commits.
+team='Co-authored-by: Nimbostack Agentic Team <Nimbostack@users.noreply.github.com>'
+ident=${GIT_COMMITTER_EMAIL:-${GIT_AUTHOR_EMAIL:-$(git config user.email 2>/dev/null || echo "")}}
+automated=0
+case $ident in
+  *@nimbostack.local|*@nimbostack.com) automated=1 ;;
+esac
+[ "${NP_AGENT_COMMIT:-0}" = "1" ] && automated=1
+[ "${NP_HUMAN_COMMIT:-0}" = "1" ] && automated=0
+
+if [ "$automated" = "1" ] && ! printf '%s\n' "$body" | grep -qxF "$team"; then
+  die "missing the team co-authorship trailer ($ident)." \
+    "Add as the last line of the message, byte for byte:" \
+    "$team" \
+    "Human author on our domains: NP_HUMAN_COMMIT=1 git commit ..."
+fi
+
+# 4. Advice, not a gate: a long body is wrapped for the reader.
+if printf '%s\n' "$body" | grep -vE '^(Co-authored-by|Signed-off-by|Reviewed-by):' | grep -qE '.{73,}'; then
+  echo "commit-msg: note — body lines over 72 columns; wrap for readability." >&2
+fi
+
+exit 0
