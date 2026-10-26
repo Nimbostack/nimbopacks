@@ -64,7 +64,7 @@ type ImageOpts struct {
 	OutputDir string
 	Push      bool
 	TLS       types.TLSConfig
-	Layering  *types.LayeringConfig // nil = apko default (auto multi-layer)
+	Layering  *types.LayeringConfig // nil = apko default (single layer, legacy behavior)
 }
 
 // ImageResult is the output of AssembleImage.
