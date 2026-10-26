@@ -27,8 +27,6 @@ image:
     - nginx
     - ca-certificates-bundle
   run_as: 65532
-  ports:
-    - "8080"
 
 # The default nginx.conf includes:
 #   - SPA fallback (try_files → /index.html)

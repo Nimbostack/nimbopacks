@@ -15,6 +15,9 @@ func TestGetCapabilities(t *testing.T) {
 	if !wolfi.AtomicPatching {
 		t.Error("wolfi should have atomic patching")
 	}
+	if wolfi.ExposedPorts {
+		t.Error("wolfi should not claim exposed-port support (apko has no input key for it)")
+	}
 
 	// Unknown backends report zero-value capabilities.
 	if (GetCapabilities("nonexistent") != Capabilities{}) {

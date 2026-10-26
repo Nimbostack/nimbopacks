@@ -130,7 +130,6 @@ func (p *Pack) GenerateConfig(_ context.Context, srcDir string, detected *types.
 	// `daemon off;` directive is in the config itself (apko splits cmd on
 	// spaces, which would mangle a `-g "daemon off;"` argument).
 	cfg.Image.Cmd = []string{"-e", "/dev/stderr", "-c", "/etc/nginx/nimbopacks.conf"}
-	cfg.Image.Ports = []string{"8080"}
 	cfg.Image.RunAs = 65532
 
 	cfg.Build.Env = map[string]string{

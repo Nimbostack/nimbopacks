@@ -23,5 +23,3 @@ image:
     JAVA_HOME: /usr/lib/jvm/java-21-openjdk
     JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
   run_as: 65532
-  ports:
-    - "8080"

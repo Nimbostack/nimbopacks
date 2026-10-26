@@ -24,5 +24,3 @@ image:
   env:
     ASPNETCORE_URLS: "http://+:8080"
   run_as: 65532
-  ports:
-    - "8080"

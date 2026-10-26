@@ -29,5 +29,3 @@ image:
     PYTHONPATH: /app
     DJANGO_SETTINGS_MODULE: config.settings
   run_as: 65532
-  ports:
-    - "8080"
