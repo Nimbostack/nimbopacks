@@ -46,6 +46,3 @@ artifacts:
     source: src/MyApp.Worker
     command: "dotnet publish src/MyApp.Worker -c Release -o /home/build/output/app/worker --no-self-contained"
     dest: /app/worker
-
-update:
-  auto_check: true

@@ -50,6 +50,3 @@ tls:
   # only as a one-off diagnostic when you suspect a CA issue and want to
   # rule TLS out as the cause.
   # insecure: false
-
-update:
-  auto_check: true
