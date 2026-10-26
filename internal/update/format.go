@@ -38,7 +38,11 @@ func formatText(r *types.UpdateReport, w io.Writer) error {
 
 	fmt.Fprintf(w, "Found vulnerabilities in %d package(s):\n\n", len(r.Packages))
 	for _, p := range r.Packages {
-		fmt.Fprintf(w, "  %s@%s  [%s]\n", p.Package, p.CurrentVersion, strings.ToUpper(p.Severity))
+		pinned := ""
+		if p.Pinned {
+			pinned = "  [PINNED]"
+		}
+		fmt.Fprintf(w, "  %s@%s  [%s]%s\n", p.Package, p.CurrentVersion, strings.ToUpper(p.Severity), pinned)
 		for _, cve := range p.CVEs {
 			fmt.Fprintf(w, "    → %s\n", cve)
 		}
@@ -62,15 +66,19 @@ func formatTable(r *types.UpdateReport, w io.Writer) error {
 	}
 
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "PACKAGE\tVERSION\tSEVERITY\tCVE\tFIX AVAILABLE")
+	fmt.Fprintln(tw, "PACKAGE\tVERSION\tSEVERITY\tCVE\tFIX AVAILABLE\tPINNED")
 	for _, p := range r.Packages {
 		fix := p.LatestVersion
 		if fix == "" || fix == p.CurrentVersion {
 			fix = "-"
 		}
 		cves := strings.Join(p.CVEs, ", ")
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
-			p.Package, p.CurrentVersion, strings.ToUpper(p.Severity), cves, fix)
+		pinned := "-"
+		if p.Pinned {
+			pinned = "yes"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			p.Package, p.CurrentVersion, strings.ToUpper(p.Severity), cves, fix, pinned)
 	}
 	return tw.Flush()
 }
@@ -103,6 +111,9 @@ func formatSARIF(r *types.UpdateReport, w io.Writer) error {
 	type sarifRuleProperties struct {
 		Severity string `json:"severity"`
 	}
+	type sarifResultProperties struct {
+		Pinned bool `json:"pinned"`
+	}
 	type sarifRule struct {
 		ID               string              `json:"id"`
 		ShortDescription sarifShortDesc      `json:"shortDescription"`
@@ -131,10 +142,11 @@ func formatSARIF(r *types.UpdateReport, w io.Writer) error {
 		PhysicalLocation sarifPhysicalLocation `json:"physicalLocation"`
 	}
 	type sarifResult struct {
-		RuleID    string          `json:"ruleId"`
-		Level     string          `json:"level"`
-		Message   sarifMessage    `json:"message"`
-		Locations []sarifLocation `json:"locations"`
+		RuleID     string                `json:"ruleId"`
+		Level      string                `json:"level"`
+		Message    sarifMessage          `json:"message"`
+		Locations  []sarifLocation       `json:"locations"`
+		Properties sarifResultProperties `json:"properties"`
 	}
 	type sarifRun struct {
 		Tool    sarifTool     `json:"tool"`
@@ -162,16 +174,21 @@ func formatSARIF(r *types.UpdateReport, w io.Writer) error {
 					Properties:       sarifRuleProperties{Severity: p.Severity},
 				})
 			}
+			msg := fmt.Sprintf("%s@%s: %s (%s)", p.Package, p.CurrentVersion, cve, p.Severity)
+			if p.Pinned {
+				msg += " [pinned]"
+			}
 			results = append(results, sarifResult{
 				RuleID:  cve,
 				Level:   sarifLevel(p.Severity),
-				Message: sarifMessage{Text: fmt.Sprintf("%s@%s: %s (%s)", p.Package, p.CurrentVersion, cve, p.Severity)},
+				Message: sarifMessage{Text: msg},
 				Locations: []sarifLocation{{
 					PhysicalLocation: sarifPhysicalLocation{
 						ArtifactLocation: sarifArtifactLocation{URI: "nimpack.yaml"},
 						Region:           sarifRegion{StartLine: 1},
 					},
 				}},
+				Properties: sarifResultProperties{Pinned: p.Pinned},
 			})
 		}
 	}
