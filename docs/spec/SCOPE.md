@@ -21,7 +21,7 @@ inventory and gap report that decides what the specification can safely freeze.
 | Keys **never read by any production code** | **6** — `build.context`, `build.template`, `image.labels`, `image.ports`, `update.auto_check`, `update.repositories` — **plus `schema_version` itself** |
 | Fields whose documented meaning does not match the implementation | **7** — `build.template`, `build.env`, `image.layering` (absent-case default), `artifacts[].name`, `artifacts[].dest`, `update.auto_check` (default), `update.pinned`; plus `tls.ca_cert_paths` (§3 secondary) |
 | `schema_version` validation in the loader | **None.** The field is written by `BaseConfig` and all 23 templates and never read. |
-| Blocking ambiguities to resolve before freeze | **14** (§3) — **10 resolved** in ADR-0003, 4 (A9–A11, A13) carried to ADR-0004 |
+| Blocking ambiguities to resolve before freeze | **14** (§3) — **all 14 resolved**: 10 in ADR-0003, 4 (A9, A10, A11, A13) in ADR-0004. None is digest-affecting for a config that ships today. |
 | Estimated effort for spec + JSON Schema | **6.5 engineer-days**, of which 2.0 are decisions that need CTO/Engineering Lead input (§5) |
 
 The headline risk is not missing text. It is that **22 of the 23 shipped templates
@@ -35,12 +35,12 @@ the spec is written, not after.
 **Update 2026-10-23:** that disposition is **decided** in
 [ADR-0003](../adr/0003-dead-field-disposition.md) (Accepted) — three architect
 calls plus six product calls recorded by the CTO, and the four measurements that
-needed a build environment closed by NIMA-11. §3 below records the per-field
+needed a build environment, which was closed the same week. §3 records the per-field
 outcome. The headline changed with the measurement: apko has **no** input path
 for exposed ports, so `image.ports` is reserved as a backend-capability gap and
 stripped from the generators rather than implemented, and **no image digest moves
 anywhere in ADR-0003**. The spec can now be written. The last carve-out — the
-reproducibility clause — was settled the same day on NIMA-17: the wolfi backend
+reproducibility clause — was settled the same day: the wolfi backend
 reports `Reproducible: false`, ephemeral per-build signing keys are kept
 deliberately as a security property, and the v1 guarantee is therefore
 **content-equivalence, not byte-equivalence**. That has a knock-on effect on §4.2
@@ -177,27 +177,36 @@ Also excluded: `backend.BuildOpts/BuildResult/ImageOpts/ImageResult/Capabilities
 Each is file + field + exactly what is unclear. **D** = needs a product/owner
 decision; **A** = architect can resolve and record.
 
-**Status column** added 2026-10-23, revised the same day after the NIMA-11
+**Status column** added 2026-10-23, revised the same day after the review
 build-environment verification: A1–A8, A12 and A14 are **resolved** in
-[ADR-0003](../adr/0003-dead-field-disposition.md) (Accepted 2026-10-23); A9, A10,
-A11 and A13 move to ADR-0004; A14's implementation moves to ADR-0005 because it
-changes the `update --check` exit-code contract.
+[ADR-0003](../adr/0003-dead-field-disposition.md) (Accepted 2026-10-23); A14's
+implementation moves to ADR-0005 because it changes the `update --check`
+exit-code contract.
+
+**Revised again 2026-10-23:** A9, A10, A11 and A13 are **resolved** in
+[ADR-0004](../adr/0004-schema-wire-format-separation.md) (Accepted 2026-10-23),
+together with the `LayeringConfig` / `ApkoConfig` / `MelangeConfig` decoupling.
+**All 14 ambiguities in this table are now closed.** Every disposition is
+plan-neutral and digest-neutral for every config that ships today, so the freeze
+needs no re-pin. ADR-0004 also amends §4.2 criterion 7 (below) to be defined on
+plan-equivalence rather than digest-equivalence, which is the open item ADR-0003
+left for it.
 
 | # | File:line | Field | What is unclear | Kind | Resolved in |
 |---|---|---|---|---|---|
 | A1 | `types.go:17`, `config.go:18` | `schema_version` | No validation exists. Is it required? What does the loader do on `"2"`, on `"1.0"`, on absent? Today: all three are accepted and ignored. | **A** | **ADR-0003 — Implement** (validate, warn-then-error ramp). Decided: Principal Architect, 2026-10-23. |
 | A2 | `types.go:98` | `build.context` | Dead field. Does v1 ship it as a promise (and implement it), reserve it, or delete it? Deleting breaks any config that already sets it; implementing changes the digest of any config that already sets it. | **D** | **ADR-0003 — Delete**. Decided: CTO, 2026-10-23. Free under the leniency corollary; migration note points at `artifacts[].source`. |
-| A3 | `types.go:118` | `image.labels` | Dead field, and `ApkoConfig` has no annotations support, so implementing it is a backend change, not a schema change. | **D** | **ADR-0003 — Implement**. Decided: CTO, 2026-10-23. NIMA-11 confirmed apko accepts a top-level `annotations:` key, so this is a one-field `ApkoConfig` addition. |
-| A4 | `types.go:121` | `image.ports` | Dead field **that we actively generate into 22 of 23 templates**. Users will reasonably read this as `EXPOSE`. Highest-exposure item in this report. | **D** | **ADR-0003 — Reserve** as a backend-capability gap, and strip from all 23 templates, 26 samples and both packs. Decided: CTO, 2026-10-23 (stated fallback). NIMA-11 proved the pinned apko has **no** exposed-ports input key. |
+| A3 | `types.go:118` | `image.labels` | Dead field, and `ApkoConfig` has no annotations support, so implementing it is a backend change, not a schema change. | **D** | **ADR-0003 — Implement**. Decided: CTO, 2026-10-23. A direct measurement confirmed apko accepts a top-level `annotations:` key, so this is a one-field `ApkoConfig` addition. |
+| A4 | `types.go:121` | `image.ports` | Dead field **that we actively generate into 22 of 23 templates**. Users will reasonably read this as `EXPOSE`. Highest-exposure item in this report. | **D** | **ADR-0003 — Reserve** as a backend-capability gap, and strip from all 23 templates, 26 samples and both packs. Decided: CTO, 2026-10-23 (stated fallback). A direct measurement proved the pinned apko has **no** exposed-ports input key. |
 | A5 | `types.go:196` | `update.auto_check` | Dead, *and* its documented default (`true`) is the opposite of its zero value (`false`). If it ever becomes live, every config that omits it flips meaning. Should be `*bool` like `inject_into_image`. | **D** | **ADR-0003 — Delete**. Decided: CTO, 2026-10-23. CI scheduling belongs in the CI config; 50 files regenerate. |
 | A6 | `types.go:199` | `update.repositories` | Dead. Also Wolfi-shaped ("additional Wolfi repos") in a backend-agnostic schema. | **A** | **ADR-0003 — Delete**. Decided: Principal Architect. |
 | A7 | `types.go:85` | `build.template` | Dead, and its comment promises a feature (`update` pulls template updates) that does not exist. | **A** | **ADR-0003 — Reserve** (informational provenance, normatively non-behavioural). Decided: Principal Architect. |
 | A8 | `types.go:94` | `build.env` | Documented as build environment variables; implemented as a per-pack keyword channel. Either implement it as real melange env (changes digests) or rename/narrow it. Unknown keys are silently dropped — no error, no warning. | **D** | **ADR-0003 — rename to `build.options`**, narrow the docs, warn on unknown keys, keep `build.env` as a deprecated alias through v1. Decided: CTO, 2026-10-23. A separate additive `build.environment` (real melange env, required by the Blockstax conformance target) is carried **open** as A8b. |
-| A9 | `types.go:115`, `pack.go:177` | `image.run_as` | `uint32` + `!= 0` guard means `run_as: 0` cannot be expressed. Is root deliberately unrepresentable (defensible) or an accident? If deliberate, the spec must say so; if not, the type must become `*uint32`. | **A** | ADR-0004 (open) |
-| A10 | `types.go:159` | `image.layering.strategy` | Free string with exactly one legal value and no validation. Should be an enum. Adding the enum later rejects configs that are accepted today → breaking. | **A** | ADR-0004 (open) |
-| A11 | `types.go:174` | `image.layering.budget` | No `omitempty`, so a block with only `strategy` emits `budget: 0`. Is `0` "no extra layers", "apko default", or invalid? Unspecified on our side. | **A** | ADR-0004 (open) |
-| A12 | `types.go:129` vs `backend.go:67` | `image.layering` absent | The two comments disagree: `types.go` says absent ⇒ "single layer (legacy behavior)"; `backend.go` says `nil` ⇒ "apko default (auto multi-layer)". One of them is wrong and it determines the digest of every image built without a `layering:` block. **Cannot be settled without a build — Docker is unavailable.** | **A** | **Resolved — single layer.** NIMA-11 measured it directly: no `layering:` block → 1 layer (apko's own history says *"This is an apko single-layer image"*); `strategy: origin, budget: 10` → 10 layers. `types.go:129` was right; the `backend.go:67` comment is corrected in PR #29. Recorded in ADR-0003. |
-| A13 | `types.go:187`, `dotnetpack.go:248` | `artifacts[].dest` | Comment says image path; dotnet treats it as a suffix of the staging dir and requires a leading `/`; go ignores it. Three behaviours, one field. | **A** | ADR-0004 (open) |
+| A9 | `types.go:115`, `pack.go:177` | `image.run_as` | `uint32` + `!= 0` guard means `run_as: 0` cannot be expressed. Is root deliberately unrepresentable (defensible) or an accident? If deliberate, the spec must say so; if not, the type must become `*uint32`. | **A** | **[ADR-0004](../adr/0004-schema-wire-format-separation.md) — `*uint32`.** `run_as: 0` becomes valid and means root, with a stderr warning; absent means the 65532 default. The current behaviour is an accident, not a policy. Measured: apko accepts `run-as: "0"` and emits `config.User: "0"`. Digest impact: **none** — all 50 shipped templates/samples set `65532`. Decided: Principal Architect, 2026-10-23. |
+| A10 | `types.go:159` | `image.layering.strategy` | Free string with exactly one legal value and no validation. Should be an enum. Adding the enum later rejects configs that are accepted today → breaking. | **A** | **[ADR-0004](../adr/0004-schema-wire-format-separation.md) — closed enum**, one member `origin` in v1, owned by nimbopacks rather than apko, validated at load with an error. Measured: apko already exits `1` on an unknown strategy, so no working config is newly rejected. Digest impact: **none**. Decided: Principal Architect, 2026-10-23. |
+| A11 | `types.go:174` | `image.layering.budget` | No `omitempty`, so a block with only `strategy` emits `budget: 0`. Is `0` "no extra layers", "apko default", or invalid? Unspecified on our side. | **A** | **[ADR-0004](../adr/0004-schema-wire-format-separation.md) — `*int`, REQUIRED when the block is present, MUST be ≥ 1**; absent and `0` are load errors; no default. Measured (apko v1.4.12): absent block → 1 layer, `budget` absent ≡ `0` ≡ `1` → 2 layers, `8` → 9, `40` → 39 (capped by origin-group count). So **`budget: 0` is *not* equivalent to omitting the block**, and the missing `omitempty` is digest-neutral. Digest impact: **none** — the one shipped config sets `budget: 8`. Decided: Principal Architect, 2026-10-23. |
+| A12 | `types.go:129` vs `backend.go:67` | `image.layering` absent | The two comments disagree: `types.go` says absent ⇒ "single layer (legacy behavior)"; `backend.go` says `nil` ⇒ "apko default (auto multi-layer)". One of them is wrong and it determines the digest of every image built without a `layering:` block. **Cannot be settled without a build — Docker is unavailable.** | **A** | **Resolved — single layer.** Measured directly: no `layering:` block → 1 layer (apko's own history says *"This is an apko single-layer image"*); `strategy: origin, budget: 10` → 10 layers. `types.go:129` was right; the `backend.go:67` comment is corrected in PR #29. Recorded in ADR-0003. |
+| A13 | `types.go:187`, `dotnetpack.go:248` | `artifacts[].dest` | Comment says image path; dotnet treats it as a suffix of the staging dir and requires a leading `/`; go ignores it. Three behaviours, one field. | **A** | **[ADR-0004](../adr/0004-schema-wire-format-separation.md) — one definition:** the absolute path *in the image*, MUST begin with `/`, validated at load. **This row's framing was wrong:** dotnet's staging suffix resolves through `pack.InstallOutputStep()` to exactly the documented image path, so dotnet already conforms. The real finding is two **pack defects** — the go pack ignores `dest` (fix: melange `go/build`'s `prefix`/`install-dir` inputs), and java/node/python/webserver ignore `artifacts` entirely and MUST error instead of silently building only the root artifact. Digest impact: **none** for shipped configs. Decided: Principal Architect, 2026-10-23. |
 | A14 | `types.go:202`, `update.go:218` | `update.pinned` | Comment says pinned packages "won't be updated"; implementation only tags the report and still fails `--check`. Since exit codes are a public contract, this is the gap most likely to surprise a CI consumer. | **D** | **Fix the code to match the comment** — pinned packages are excluded from the `--check` threshold. Decided: CTO, 2026-10-23, overriding the architect's recommendation to document current behaviour. Because it changes a public contract it ships as **ADR-0005**, carrying two conditions from ADR-0003: findings against pinned packages still appear in every report, and `pinned` means *held at a known version*, not *waived*. |
 
 Secondary findings worth recording but not blocking the schema freeze:
@@ -210,13 +219,13 @@ Secondary findings worth recording but not blocking the schema freeze:
 - `pipeline.go:38` — the CLI CA cert is appended to `tls.ca_cert_paths`; the
   comment claims the CLI wins. Harmless today, wrong as documentation.
 - `wolfi.go:70` — `melange keygen` generates a **fresh RSA key on every build**.
-  **Measured 2026-10-23 (NIMA-11): it does perturb the digest.** Signing one
+ **Measured 2026-10-23: it does perturb the digest.** Signing one
   identical package with two fresh keys, then indexing and building with a pinned
   `--build-date`, produced different layer digests and diffIDs. Mechanism: an
   RSA-PKCS1v1.5 signature's DER encoding varies in length key-to-key, that length
   lands in the `S:` field of `/lib/apk/db/installed`, and that file is inside the
   layer tarball; the per-build public key under `/etc/apk/keys/` perturbs it
-  independently. **Resolved on NIMA-17, 2026-10-23:** the flag is now `false`, and
+ independently. **Resolved 2026-10-23:** the flag is now `false`, and
   the ephemeral key is kept on purpose — long-lived signing material on a build
   host is a worse exposure than an unstable digest. Two items follow from that and
   are **not** yet done: the normative text must define the guarantee as
@@ -266,7 +275,7 @@ A change to `internal/types/` or to any code that reads it is **breaking** if
    versions, `SOURCE_DATE_EPOCH`), the resulting image digest changes.
 
 **Criterion 7 needs rephrasing before §4 goes normative** (added 2026-10-23).
-NIMA-17 established that the wolfi backend is **not** byte-reproducible by
+A direct measurement established that the wolfi backend is **not** byte-reproducible by
 design: `melange keygen` mints an ephemeral signing key per build, the
 signature's DER length varies key-to-key, and that length reaches the layer
 tarball through the `S:` field of `/lib/apk/db/installed`. So two builds of an
@@ -285,6 +294,20 @@ Every disposition in ADR-0003 is plan-neutral as well as digest-neutral, so this
 rephrasing changes none of them. It is recorded here rather than applied, because
 promoting §4 to `COMPATIBILITY.md` is its own workstream (§5 item 5) and the
 criteria should be renumbered once, there.
+
+**Amended 2026-10-23 by [ADR-0004](../adr/0004-schema-wire-format-separation.md)
+D4 — use that wording when §4 is promoted.** The draft above names
+`MelangeConfig` and `ApkoConfig`, which ADR-0004 D1 classifies as the *wolfi
+adapter's wire formats*. Phrasing the universal breaking-change test in terms of
+one adapter's types re-commits the leak D1 forbids. The accepted wording is
+backend-parameterised:
+
+> **7′. Plan change.** For a fixed (source tree, `nimpack.yaml`, toolchain
+> version, environment), **the build plan the active backend receives** is not
+> byte-identical after canonical serialisation. For the `wolfi` backend that plan
+> is the generated `melange.yaml` plus `apko.yaml`. Digest equivalence follows
+> from plan equivalence modulo the per-build signing key, and is the
+> user-visible consequence, not the test.
 
 **Rule 7 corollary — "dead field activation":** implementing a field that is
 currently parsed-and-ignored (`build.context`, `image.labels`, `image.ports`,
@@ -371,8 +394,8 @@ Reviewers paste this into any PR touching `internal/types/`:
 | 4. Conformance tests | Table-driven tests in `internal/types` and `internal/config` that pin defaults, zero-value semantics, and round-trips; targets `internal/pack.ApplyConfig`, which implements the override semantics for six fields at **0% coverage** today | **1.5 d** | Can start in parallel with 2 |
 | 5. Compatibility policy doc | `docs/spec/COMPATIBILITY.md` (§4 promoted to normative) + the PR checklist into `CONTRIBUTING.md` | **0.5 d** | Workstream 1 |
 | **Subtotal** | | **6.5 d** | |
-| 6. Digest-stability verification (A12, melange keygen) | ~~A double-build proving rebuild determinism and settling the default-layering question~~ | **done** | **Closed by NIMA-11, 2026-10-23.** A12 answered (absent ⇒ single layer); apko capability answered for both ports and annotations; `melange keygen` **does** perturb the digest. |
-| 7. ~~Fix `Reproducible: true`~~ | Capability flag corrected to `false`; ephemeral signing keys kept deliberately | **done** | **Closed by NIMA-17, 2026-10-23.** Leaves two follow-ons: the §4.2 criterion-7 rephrasing below, and reconciling the "reproducible" claim in `CLAUDE.md:7` and `README.md:10` (product call → CTO). |
+| 6. Digest-stability verification (A12, melange keygen) | ~~A double-build proving rebuild determinism and settling the default-layering question~~ | **done** | **Closed 2026-10-23.** A12 answered (absent ⇒ single layer); apko capability answered for both ports and annotations; `melange keygen` **does** perturb the digest. |
+| 7. ~~Fix `Reproducible: true`~~ | Capability flag corrected to `false`; ephemeral signing keys kept deliberately | **done** | **Closed 2026-10-23.** Leaves two follow-ons: the §4.2 criterion-7 rephrasing below, and reconciling the "reproducible" claim in `CLAUDE.md:7` and `README.md:10` (product call → CTO). |
 | 8. A8b — `build.environment` | A real melange build-env channel (`MelangeEnvironment.Environment`), required by the Blockstax conformance target | **0.5 d** | Additive and non-breaking, but a new public key — must land before the freeze or it costs a migration note. Needs CTO acceptance. |
 
 Sequencing: workstream 1 gates everything. Workstream 4 is the one that should

@@ -19,17 +19,19 @@ that uses the existing extension points.
 | # | Title | Status |
 |---|---|---|
 | [0003](0003-dead-field-disposition.md) | Disposition the seven parsed-and-ignored `nimpack.yaml` fields before the v1 freeze | **Accepted** 2026-10-23 |
-| [0005](0005-pinned-threshold-failon-validation.md) | Exclude pinned packages from the `update --check` threshold, and validate `--fail-on` | **Accepted** 2026-10-23 |
+| [0004](0004-schema-wire-format-separation.md) | Separate the `nimpack.yaml` schema types from the backend wire formats, and close the four layering/artifact ambiguities | **Accepted** 2026-10-23 |
 
 ADR-0001 (backend abstraction) and ADR-0002 (`schema_version` + compatibility policy)
 are in flight on their own branches; add them to this index when they merge.
 
 Planned, not yet written:
 
-- **ADR-0004** — decouple `LayeringConfig`, `ApkoConfig` and `MelangeConfig` from
-  `internal/types`; absorbs the `image.run_as` zero value, the `layering.strategy` enum,
-  the `layering.budget` zero value and the three behaviours of `artifacts[].dest`
-  (SCOPE §3 A9, A10, A11, A13).
+- **ADR-0005** — `update.pinned` excluded from the `--check` threshold, plus `--fail-on`
+  validation. Changes the `update --check` exit-code contract, so it carries its own
+  migration note.
+- **`Capabilities` as a sixth `backend.Backend` method** — retires leak L5
+  (`GetCapabilities` switches on backend name inside the port). Required by ADR-0001 §4,
+  restated as still-open by ADR-0004.
 
 ## Rules
 

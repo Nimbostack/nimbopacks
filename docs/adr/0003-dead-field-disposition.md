@@ -1,13 +1,13 @@
 # 0003. Disposition the seven parsed-and-ignored `nimpack.yaml` fields before the v1 freeze
 
 - **Status:** Accepted — 2026-10-23
-- **Date:** 2026-10-23 (revised same day after the NIMA-11 build-environment verification)
+- **Date:** 2026-10-23 (revised same day after the review build-environment verification)
 - **Deciders:** Principal Architect (A1, A6, A7); CTO (A2, A3, A4, A5, and the two adjacent calls A8, A14)
 - **Affects:** `internal/types/types.go`, `internal/config/config.go`, `internal/pack/pack.go`,
   `pkg/packs/dotnet/dotnetpack.go`, `pkg/packs/webserver/webserverpack.go`,
   `pkg/templates/templates/**` (23 files), `samples/**/nimpack.yaml` (27 files),
   `docs/spec/nimpack-v1.md` (unwritten), `docs/spec/nimpack.schema.json` (unwritten)
-- **Informed by:** NIMA-11 build-environment verification (apko v1.4.12, melange v0.63.1)
+- **Informed by:** the review build-environment verification (apko v1.4.12, melange v0.63.1)
 - **Supersedes nothing. Gates:** the normative v1 spec text (workstream 2 of `docs/spec/SCOPE.md` §5)
 
 ---
@@ -98,7 +98,7 @@ field is never silently inert: the loader or the backend says so on stderr.
 | A5 | `update.auto_check` | **Delete** | **None** — no reader | None under the leniency corollary. Requires regenerating 23 templates + 27 samples. | CTO, 2026-10-23 |
 | A6 | `update.repositories` | **Delete** | **None** — no reader, no shipped writer | None under the leniency corollary | Principal Architect, 2026-10-23 |
 
-**Net effect on the freeze: zero digest movement.** The verification in NIMA-11 removed
+**Net effect on the freeze: zero digest movement.** The verification in the schema review removed
 the one disposition that would have changed digests (A4), and A3 — the only remaining
 `Implement` with any digest reach — is set by no shipped template and no shipped sample.
 Every image nimbopacks builds today keeps its digest across this ADR. That was not true of
@@ -136,7 +136,7 @@ stateable position; silently accepting absence forever is not.
 `ApkoConfig` (`types.go:285`) has no annotations field, so this is a backend change rather
 than a schema change — the schema field already exists and is already the right shape.
 
-**Verified (NIMA-11).** `annotations:` is a real top-level key in the pinned apko's
+**Verified.** `annotations:` is a real top-level key in the pinned apko's
 `ImageConfiguration` (apko v1.4.12). A trial build setting
 `org.opencontainers.image.source` and `.description` produced **both** OCI
 index/manifest-level `annotations` and image-config `config.Labels` carrying the same
@@ -154,7 +154,7 @@ Implement it because an enterprise-trustworthy 1.0 that cannot set
 `org.opencontainers.image.source`, `.revision`, `.licenses` or `.created` has a real
 supply-chain attribution gap. Those annotations are how a consumer traces an image back
 to its source, and they are exactly what the Chainguard / distroless / Docker Hardened
-Images comparison set already emit. The conformance target named on NIMA-15
+Images comparison set already emit. The conformance target named by direct measurement
 (`Nimbostack/blockstax-containers`) sets **9 to 11** OCI annotations on each of its four
 images; without A3, that target can never be expressed in `nimpack.yaml`, which is a
 sharper argument than the general one and is why this is the one `Implement` left standing.
@@ -173,7 +173,7 @@ This was the highest-exposure item in the report: 22 of 23 templates and 26 of 2
 write it, two packs generate it, and nothing reads it. The draft of this ADR said
 *Implement as OCI `config.ExposedPorts`*, conditional on apko being able to express it.
 
-**Verified (NIMA-11): it cannot.** The full top-level `yaml:` tag inventory extracted from
+**Verified: it cannot.** The full top-level `yaml:` tag inventory extracted from
 the pinned apko binary (v1.4.12) contains no `ports`, `exposed-ports`, `expose` or any
 equivalent. The `ExposedPorts` symbol present in the binary belongs to the *output*
 `go-containerregistry` `v1.Config` struct — the OCI config apko writes — and apko has no
@@ -321,7 +321,7 @@ The rename is a type-design fix, not cosmetics: the current name is the reason n
 noticed that `MelangeEnvironment` (`types.go:267`) has only `Contents` and therefore has
 nowhere to put an environment variable even if we wanted to.
 
-*Carried open — A8b.* The NIMA-15 Blockstax review found the conformance target needs
+*Carried open — A8b.* The the review Blockstax review found the conformance target needs
 **real** build-time environment variables (`GOMODCACHE: /var/cache/melange`), which
 `build.options` by construction will not provide. The CTO's A8 ruling explicitly says not
 to turn `build.env` into real melange env; that ruling and the Blockstax requirement are
@@ -388,7 +388,7 @@ note, per this ADR's own rule, not as a line item here.
 - The leniency corollary gives reviewers a mechanical rule for the next dead field, which
   there will be.
 - `image.labels` closes a real supply-chain attribution gap rather than papering over it,
-  and the NIMA-11 measurement reduced it from "a backend change" to a four-line one.
+ and the review measurement reduced it from "a backend change" to a four-line one.
 - `image.ports` forces the spec to grow an explicit **backend-capability gap** concept in
   v1, against a field where getting it wrong costs nothing. Without A4 that concept would
   have arrived for the first time alongside a second backend, under pressure.
@@ -416,7 +416,7 @@ note, per this ADR's own rule, not as a line item here.
 - A8b (`build.environment`) is identified but undecided, so the schema is not actually
   complete at the end of this ADR. One known gap remains, named.
 - **The reproducibility claim turned out to be false**, and the fix was to withdraw the
-  claim rather than earn it (NIMA-17). Not caused by this ADR, but it lands in the same
+ claim rather than earn it. Not caused by this ADR, but it lands in the same
   window, and it means §4.2 criterion 7 — which defines "breaking" in terms of digest
   stability — rests on a property the tool does not have. The criterion needs rephrasing
   against the `BuildPlan` instead. Every disposition here is plan-neutral as well as
@@ -455,7 +455,7 @@ which the conformance target uses 9–11 times per image. Also rejected for
 
 **Delete `image.ports`, since apko cannot express it.** The strongest remaining
 alternative, and the one the draft of this ADR named as its own fallback — the CTO's rule
-is that a field must either do something or not exist, and after NIMA-11 we know
+is that a field must either do something or not exist, and after the review we know
 `image.ports` can do nothing under the shipped backend. Rejected because the premise is
 backwards: `nimpack.yaml` is specified to be backend-agnostic and implementable by others
 (`CLAUDE.md` design goals), so the capability of one adapter is not a reason to amputate
@@ -544,7 +544,7 @@ Items 1–3 are new tests in `internal/config` and `internal/types`, both at **0
 
 ---
 
-## Build-environment verification — results (NIMA-11, closed 2026-10-23)
+## Build-environment verification — results (closed 2026-10-23)
 
 The draft of this ADR handed four measurements to whoever had a build environment, because
 none of them were answerable from a checkout without Docker. Three were answered anyway:
@@ -556,11 +556,11 @@ none of them were answerable from a checkout without Docker. Three were answered
 | **A12** — absent `image.layering`: single layer, or apko-default multi-layer? | **Single layer.** A no-`layering:` build produced 1 layer, with apko's own history entry reading *"This is an apko single-layer image"*; `layering: {strategy: origin, budget: 10}` produced 10, grouped by origin. `types.go:129` was right, `pkg/backend/backend.go:67` was wrong; the comment is corrected in PR #29. | **Closed.** Normative consequence: an absent `image.layering` block MUST mean a single-layer image. ADR-0004 records the `LayeringConfig` decoupling, not this question. |
 | **apko capability: exposed ports** | **No.** No `ports`/`exposed-ports`/`expose` key anywhere in the pinned apko's top-level `ImageConfiguration` tag set (v1.4.12). The `ExposedPorts` symbol in the binary belongs to the output `v1.Config`, which apko never populates from input. | **A4 takes its stated fallback.** See A4 above. |
 | **apko capability: annotations** | **Yes**, key is `annotations:`. A trial build emitted both manifest-level OCI `annotations` and image-config `config.Labels`. | **A3 confirmed as Implement**, and reduced to a one-field mapping. |
-| **melange keygen digest perturbation** (`wolfi.go:70` generates a fresh RSA key per build) | **Yes, it perturbs the digest.** Signing one identical package with two fresh keys, then indexing and building with a pinned `--build-date`, produced different layer digests and diffIDs. Mechanism: the DER encoding of an RSA-PKCS1v1.5 signature varies in length key-to-key, the `.apk` size lands in the `S:` field of `/lib/apk/db/installed`, and that file is inside the layer tarball. The per-build public key under `/etc/apk/keys/` perturbs it independently. | **`Reproducible: true` at `backend.go:151` was false.** Resolved outside this ADR on NIMA-17: the flag is now `false`, and ephemeral per-build signing keys are **kept deliberately**. |
+| **melange keygen digest perturbation** (`wolfi.go:70` generates a fresh RSA key per build) | **Yes, it perturbs the digest.** Signing one identical package with two fresh keys, then indexing and building with a pinned `--build-date`, produced different layer digests and diffIDs. Mechanism: the DER encoding of an RSA-PKCS1v1.5 signature varies in length key-to-key, the `.apk` size lands in the `S:` field of `/lib/apk/db/installed`, and that file is inside the layer tarball. The per-build public key under `/etc/apk/keys/` perturbs it independently. | **`Reproducible: true` at `backend.go:151` was false.** Resolved outside this ADR by direct measurement: the flag is now `false`, and ephemeral per-build signing keys are **kept deliberately**. |
 
 Two consequences leave this ADR rather than sitting in it:
 
-- **Reproducibility (NIMA-17, closed 2026-10-23).** The wolfi backend advertised a
+- **Reproducibility (closed 2026-10-23).** The wolfi backend advertised a
   capability it does not have. The resolution chose the security property over the
   marketing one: `Reproducible` is now `false`, and melange keeps generating an ephemeral
   signing key per build rather than reusing a pinned one, because long-lived signing
@@ -582,7 +582,7 @@ Two consequences leave this ADR rather than sitting in it:
   rephrasing in terms of the *plan* — `MelangeConfig` + `ApkoConfig` — rather than the
   digest. ADR-0004 or the compatibility-policy doc owns that; it does not change any
   disposition here, because every disposition in this ADR is plan-neutral too.
-- **Environment inputs.** NIMA-11 also confirms the §3 secondary finding that nothing
+- **Environment inputs.** the review also confirms the §3 secondary finding that nothing
   passes `--source-date-epoch` through to melange or apko — both inherit it ambiently. The
   v1 reproducibility clause must enumerate the ambient environment as an input, or the
   tool must pass it explicitly. Same issue.
@@ -591,10 +591,10 @@ Two consequences leave this ADR rather than sitting in it:
 
 | Item | Issue | Owner | Next step |
 |---|---|---|---|
-| **Product claim vs. capability flag** — `CLAUDE.md:7` and `README.md:10` advertise "reproducible" images; `backend.go` now reports `Reproducible: false`. | NIMA-22 | CTO | Decide what the headline claim becomes, then reconcile both files and the v1 spec's reproducibility clause in one change. |
-| **A8b** — a real `build.environment` channel mapping to melange's `environment.environment`, required by the Blockstax conformance target (`GOMODCACHE`). Additive and non-breaking, but a new public schema field. | NIMA-21 | CTO to accept; Principal Architect to spec | Own issue + a short ADR note before the freeze. Must land before `schema_version: "1"` is normative or it needs a migration note. |
-| **A9, A10, A11, A13** — `image.run_as` zero value, `layering.strategy` enum, `layering.budget` zero value, `artifacts[].dest` three behaviours. | NIMA-18 | Principal Architect | **ADR-0004**, together with the `LayeringConfig` / `ApkoConfig` / `MelangeConfig`-in-`internal/types` decoupling the CTO asked be raised separately. |
-| **A14 implementation** — exclude pinned packages from the `--check` threshold, and make a `--fail-on` typo exit `2`. | NIMA-19 | Engineering | **ADR-0005** plus the code change, carrying the two conditions stated above. |
+| **Product claim vs. capability flag** — `CLAUDE.md:7` and `README.md:10` advertise "reproducible" images; `backend.go` now reports `Reproducible: false`. | the review | CTO | Decide what the headline claim becomes, then reconcile both files and the v1 spec's reproducibility clause in one change. |
+| **A8b** — a real `build.environment` channel mapping to melange's `environment.environment`, required by the Blockstax conformance target (`GOMODCACHE`). Additive and non-breaking, but a new public schema field. | the review | CTO to accept; Principal Architect to spec | Own issue + a short ADR note before the freeze. Must land before `schema_version: "1"` is normative or it needs a migration note. |
+| **A9, A10, A11, A13** — `image.run_as` zero value, `layering.strategy` enum, `layering.budget` zero value, `artifacts[].dest` three behaviours. | the review | Principal Architect | **ADR-0004**, together with the `LayeringConfig` / `ApkoConfig` / `MelangeConfig`-in-`internal/types` decoupling the CTO asked be raised separately. |
+| **A14 implementation** — exclude pinned packages from the `--check` threshold, and make a `--fail-on` typo exit `2`. | the review | Engineering | **ADR-0005** plus the code change, carrying the two conditions stated above. |
 
 ---
 
@@ -605,7 +605,7 @@ Two consequences leave this ADR rather than sitting in it:
 | A1 | `schema_version` | Implement — warn-then-error ramp | Principal Architect | 2026-10-23 |
 | A2 | `build.context` | Delete | CTO | 2026-10-23 |
 | A3 | `image.labels` | Implement — apko `annotations:` | CTO | 2026-10-23 |
-| A4 | `image.ports` | Reserve — backend-capability gap; strip from generators | CTO (stated fallback, condition verified by NIMA-11) | 2026-10-23 |
+| A4 | `image.ports` | Reserve — backend-capability gap; strip from generators | CTO (stated fallback, condition verified by the review) | 2026-10-23 |
 | A5 | `update.auto_check` | Delete | CTO | 2026-10-23 |
 | A6 | `update.repositories` | Delete | Principal Architect | 2026-10-23 |
 | A7 | `build.template` | Reserve — informational | Principal Architect | 2026-10-23 |
@@ -613,20 +613,20 @@ Two consequences leave this ADR rather than sitting in it:
 | A8b | `build.environment` (new) | **Undecided** — carried to its own issue | — | — |
 | A14 | `update.pinned` (adjacent) | Fix the code: exclude pinned from the `--check` threshold | CTO | 2026-10-23 |
 
-A2, A3, A4, A5, A8 and A14 were decided by the CTO on the record in the NIMA-9 thread on
+A2, A3, A4, A5, A8 and A14 were decided by the CTO on the record in the review thread on
 2026-10-23, as the six product calls this ADR was explicitly told not to make alone. A4's
-entry is a conditional decision whose condition was resolved by NIMA-11 on the same day:
+entry is a conditional decision whose condition was resolved by the review on the same day:
 the CTO pre-authorised the fallback, the verification showed apko cannot express exposed
-ports, and the fallback is what is recorded. The item-verdict interaction raised on NIMA-9
+ports, and the fallback is what is recorded. The item-verdict interaction raised by direct measurement
 (`66ec95dd-1a28-420d-8755-8acd6255c488`) was superseded by that comment and withdrawn.
 
-The code that implements these dispositions is **NIMA-20**, to be landed as four separate
+The code that implements these dispositions is **the review**, to be landed as four separate
 PRs (deletions, the `image.ports` strip, `image.labels`, the `build.env` rename) before
 `schema_version: "1"` goes normative.
 
 Every row of the decision table now carries a name and a date, so the ADR is **Accepted**
 and workstream 2 of `docs/spec/SCOPE.md` §5 — the normative v1 text — is **fully
-unblocked**. The reproducibility clause, the last carve-out, was settled by NIMA-17 on the
+unblocked**. The reproducibility clause, the last carve-out, was settled by the review on the
 same day: it is now a clause with a known answer (content-equivalent, not byte-identical)
 rather than an open question.
 
