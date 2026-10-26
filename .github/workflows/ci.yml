@@ -115,3 +115,42 @@ jobs:
       # detects one. --log-opts=--all covers every ref, including the PR head.
       - name: Scan commit history
         run: ./gitleaks git --no-banner --redact --exit-code 1 --log-opts="--all" .
+
+  # Known-vulnerability scan. govulncheck is reachability-based: it reports a
+  # vulnerability only when a symbol on an actually-callable path is affected,
+  # so its findings are not advisory noise -- each one is a code path we ship.
+  #
+  # REPORT-ONLY (continue-on-error) until the Go toolchain bump lands.
+  # As of 2026-10-23 this job reports 25 reachable vulnerabilities, all of them
+  # in the Go standard library, because the repo builds on Go 1.24 -- a release
+  # line that no longer receives security backports (the fixes are in go1.25.8
+  # through go1.26.10). Zero reachable vulnerabilities come from our own
+  # dependencies. Making the job blocking today would wall off every PR for a
+  # reason no PR author can fix.
+  #
+  # Flip `continue-on-error` to false in the same change that bumps go-version
+  # past 1.26.10. Leaving this report-only indefinitely is the failure mode to
+  # watch for; it is tracked, not forgotten.
+  vuln:
+    name: Vulnerabilities (govulncheck)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: '1.24'
+          cache: true
+      # Pinned, not @latest: govulncheck v1.9+ requires Go 1.26 to build, and
+      # @latest would let the scanner drift independently of what we review.
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+      # GOTOOLCHAIN=local forces the scan to use the same Go that the build and
+      # release jobs use. Without it a `toolchain` directive in go.mod could
+      # silently pull a newer Go here, clearing the stdlib findings in the
+      # report while the shipped binary stays vulnerable.
+      - name: Run govulncheck
+        env:
+          GOTOOLCHAIN: local
+        run: govulncheck ./...
+
