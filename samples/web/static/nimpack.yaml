@@ -7,7 +7,7 @@ project:
 build:
   pack: web
   template: web-static
-  env:
+  options:
     OUTPUT_DIR: "."
 
 image:

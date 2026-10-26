@@ -90,7 +90,15 @@ type BuildConfig struct {
 	// Dependencies are extra APK packages needed at build time.
 	Dependencies []string `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
 
-	// Env sets environment variables during the build.
+	// Options carries per-pack build keywords read by the pack's Plan step —
+	// not real environment variables. Keys are pack-specific, e.g. ENTRYPOINT
+	// (go), JAR_DIR (java), OUTPUT_DIR / NGINX_CONF_PATH (webserver).
+	Options map[string]string `yaml:"options,omitempty" json:"options,omitempty"`
+
+	// Env is a deprecated alias for Options, accepted for v1 backward
+	// compatibility. config.Load merges it into Options.
+	//
+	// Deprecated: use Options instead.
 	Env map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
 }
 

@@ -7,7 +7,7 @@ project:
 build:
   pack: golang
   template: go-grpc
-  env:
+  options:
     CGO_ENABLED: "0"
     GOFLAGS: "-trimpath"
 

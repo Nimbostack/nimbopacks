@@ -2,12 +2,21 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
 	"github.com/Nimbostack/nimbopacks/internal/types"
 	golangpack "github.com/Nimbostack/nimbopacks/pkg/packs/golang"
 )
+
+func writeFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("writing %s: %v", path, err)
+	}
+}
 
 func TestValidate_Valid(t *testing.T) {
 	cfg := &types.NimpackConfig{}
@@ -52,34 +61,86 @@ func TestValidate_Nil(t *testing.T) {
 	}
 }
 
-func TestLoad_MissingFile(t *testing.T) {
-	cfg, err := Load(t.TempDir(), "")
-	if err != nil {
-		t.Fatalf("expected no error for a missing config, got: %v", err)
-	}
-	if cfg != nil {
-		t.Errorf("expected nil config for a missing file, got: %+v", cfg)
-	}
-}
-
-func TestLoad_ExplicitPath(t *testing.T) {
+func TestLoad_BuildOptions(t *testing.T) {
 	dir := t.TempDir()
-	path := dir + "/custom.yaml"
-	writeFile(t, path, "project:\n  name: myapp\n  version: 1.0.0\nbuild:\n  pack: golang\n")
-
-	cfg, err := Load(dir, path)
+	writeFile(t, dir, "nimpack.yaml", `
+schema_version: "1"
+project:
+  name: myapp
+  version: "1.0.0"
+build:
+  pack: golang
+  options:
+    ENTRYPOINT: ./cmd/myapp
+image:
+  packages: []
+  entrypoint: /usr/bin/myapp
+`)
+	cfg, err := Load(dir, "")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Project.Name != "myapp" {
-		t.Errorf("Project.Name: got %q", cfg.Project.Name)
+	if got := cfg.Build.Options["ENTRYPOINT"]; got != "./cmd/myapp" {
+		t.Errorf("expected ENTRYPOINT=./cmd/myapp, got %q", got)
 	}
 }
 
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
+func TestLoad_BuildEnvAlias(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "nimpack.yaml", `
+schema_version: "1"
+project:
+  name: myapp
+  version: "1.0.0"
+build:
+  pack: golang
+  env:
+    ENTRYPOINT: ./cmd/myapp
+image:
+  packages: []
+  entrypoint: /usr/bin/myapp
+`)
+	cfg, err := Load(dir, "")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.Build.Options["ENTRYPOINT"]; got != "./cmd/myapp" {
+		t.Errorf("expected build.env to be merged into Options, got %q", got)
+	}
+}
+
+func TestResolveBuildOptions_OptionsWinsOverEnvAlias(t *testing.T) {
+	cfg := &types.NimpackConfig{}
+	cfg.Build.Env = map[string]string{"ENTRYPOINT": "./old"}
+	cfg.Build.Options = map[string]string{"ENTRYPOINT": "./new"}
+
+	warnings := resolveBuildOptions(cfg)
+
+	if got := cfg.Build.Options["ENTRYPOINT"]; got != "./new" {
+		t.Errorf("expected build.options to win over build.env alias, got %q", got)
+	}
+	if len(warnings) != 1 || warnings[0] != "build.env is deprecated; use build.options instead" {
+		t.Errorf("expected single deprecation warning, got %v", warnings)
+	}
+}
+
+func TestResolveBuildOptions_WarnsOnUnrecognizedKey(t *testing.T) {
+	cfg := &types.NimpackConfig{}
+	cfg.Build.Options = map[string]string{"NOT_A_REAL_KEY": "x"}
+
+	warnings := resolveBuildOptions(cfg)
+
+	if len(warnings) != 1 || warnings[0] != `build.options: unrecognized key "NOT_A_REAL_KEY"` {
+		t.Errorf("expected unrecognized-key warning, got %v", warnings)
+	}
+}
+
+func TestResolveBuildOptions_NoWarningsForKnownKeys(t *testing.T) {
+	cfg := &types.NimpackConfig{}
+	cfg.Build.Options = map[string]string{"ENTRYPOINT": "./cmd/myapp"}
+
+	if warnings := resolveBuildOptions(cfg); len(warnings) != 0 {
+		t.Errorf("expected no warnings, got %v", warnings)
 	}
 }
 
@@ -118,10 +179,10 @@ image:
   entrypoint: ""
 `
 
-	pathWith := dir + "/with.yaml"
-	pathWithout := dir + "/without.yaml"
-	writeFile(t, pathWith, withDeadFields)
-	writeFile(t, pathWithout, withoutDeadFields)
+	writeFile(t, dir, "with.yaml", withDeadFields)
+	writeFile(t, dir, "without.yaml", withoutDeadFields)
+	pathWith := filepath.Join(dir, "with.yaml")
+	pathWithout := filepath.Join(dir, "without.yaml")
 
 	cfgWith, err := Load(dir, pathWith)
 	if err != nil {

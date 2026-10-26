@@ -6,7 +6,7 @@ project:
 
 build:
   pack: web
-  env:
+  options:
     # Serve the static files from public/ ...
     OUTPUT_DIR: public
     # ... and use this project's own nginx.conf instead of the generated

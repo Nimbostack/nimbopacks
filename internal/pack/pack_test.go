@@ -4,34 +4,12 @@ import (
 	"reflect"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/Nimbostack/nimbopacks/internal/pack"
 	"github.com/Nimbostack/nimbopacks/internal/types"
-	"gopkg.in/yaml.v3"
 )
 
-// TestApplyConfig_PortsIgnored covers ADR-0003 A4's verification
-// requirement: two configs differing only in image.ports must produce an
-// identical ApkoConfig, since no backend-agnostic plan field carries ports.
-func TestApplyConfig_PortsIgnored(t *testing.T) {
-	base := func() *types.NimpackConfig {
-		return &types.NimpackConfig{
-			Project: types.ProjectMeta{Name: "app", Version: "1.0.0"},
-			Image:   types.ImageConfig{Entrypoint: "/usr/bin/app"},
-		}
-	}
-
-	cfgWithoutPorts := base()
-	cfgWithPorts := base()
-	cfgWithPorts.Image.Ports = []string{"8080"}
-
-	planWithout := &types.BuildPlan{Apko: pack.NewApkoConfig("app", "", nil)}
-	planWith := &types.BuildPlan{Apko: pack.NewApkoConfig("app", "", nil)}
-
-	pack.ApplyConfig(planWithout, cfgWithoutPorts)
-	pack.ApplyConfig(planWith, cfgWithPorts)
-
-	if !reflect.DeepEqual(planWithout.Apko, planWith.Apko) {
-		t.Errorf("ApkoConfig differs based on image.ports:\nwithout: %+v\nwith:    %+v", planWithout.Apko, planWith.Apko)
 // TestApplyConfig_LabelsBecomeAnnotations covers ADR-0003 A3: image.labels
 // maps 1:1 onto apko's annotations: key.
 func TestApplyConfig_LabelsBecomeAnnotations(t *testing.T) {
@@ -86,5 +64,31 @@ func TestApplyConfig_LabelsDeterministic(t *testing.T) {
 		if got := render(); string(got) != string(first) {
 			t.Fatalf("annotations output not deterministic:\nfirst: %s\ngot:   %s", first, got)
 		}
+	}
+}
+
+// TestApplyConfig_PortsIgnored covers ADR-0003 A4's verification
+// requirement: two configs differing only in image.ports must produce an
+// identical ApkoConfig, since no backend-agnostic plan field carries ports.
+func TestApplyConfig_PortsIgnored(t *testing.T) {
+	base := func() *types.NimpackConfig {
+		return &types.NimpackConfig{
+			Project: types.ProjectMeta{Name: "app", Version: "1.0.0"},
+			Image:   types.ImageConfig{Entrypoint: "/usr/bin/app"},
+		}
+	}
+
+	cfgWithoutPorts := base()
+	cfgWithPorts := base()
+	cfgWithPorts.Image.Ports = []string{"8080"}
+
+	planWithout := &types.BuildPlan{Apko: pack.NewApkoConfig("app", "", nil)}
+	planWith := &types.BuildPlan{Apko: pack.NewApkoConfig("app", "", nil)}
+
+	pack.ApplyConfig(planWithout, cfgWithoutPorts)
+	pack.ApplyConfig(planWith, cfgWithPorts)
+
+	if !reflect.DeepEqual(planWithout.Apko, planWith.Apko) {
+		t.Errorf("ApkoConfig differs based on image.ports:\nwithout: %+v\nwith:    %+v", planWithout.Apko, planWith.Apko)
 	}
 }

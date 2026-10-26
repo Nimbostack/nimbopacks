@@ -13,7 +13,7 @@ build:
   pack: java
   template: java-gradle
   command: "./gradlew build -x test"
-  env:
+  options:
     # Gradle writes the built jar to build/libs (Maven uses target/).
     JAR_DIR: build/libs
   dependencies:

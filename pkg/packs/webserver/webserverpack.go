@@ -132,12 +132,12 @@ func (p *Pack) GenerateConfig(_ context.Context, srcDir string, detected *types.
 	cfg.Image.Cmd = []string{"-e", "/dev/stderr", "-c", "/etc/nginx/nimbopacks.conf"}
 	cfg.Image.RunAs = 65532
 
-	cfg.Build.Env = map[string]string{
+	cfg.Build.Options = map[string]string{
 		"OUTPUT_DIR": outputDir,
 	}
 
 	if path, ok := meta["nginx_conf_path"]; ok && path != "" {
-		cfg.Build.Env["NGINX_CONF_PATH"] = path
+		cfg.Build.Options["NGINX_CONF_PATH"] = path
 	}
 
 	return &cfg, nil
@@ -159,7 +159,7 @@ func (p *Pack) Plan(_ context.Context, _ string, cfg *types.NimpackConfig) (*typ
 		Runtime: []string{"nginx", "ca-certificates-bundle"},
 	}
 
-	outputDir := cfg.Build.Env["OUTPUT_DIR"]
+	outputDir := cfg.Build.Options["OUTPUT_DIR"]
 	if outputDir == "" {
 		outputDir = "dist"
 	}
@@ -186,7 +186,7 @@ find %s -mindepth 1 -maxdepth 1 ! -name output ! -name melange-out -exec cp -r {
 
 	// Step 3: nginx.conf — use custom if exists, otherwise generate default.
 	nginxConfPath := ""
-	if path, ok := cfg.Build.Env["NGINX_CONF_PATH"]; ok && path != "" {
+	if path, ok := cfg.Build.Options["NGINX_CONF_PATH"]; ok && path != "" {
 		nginxConfPath = path
 	}
 

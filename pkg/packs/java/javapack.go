@@ -85,11 +85,11 @@ func (p *Pack) GenerateConfig(_ context.Context, _ string, det *types.DetectResu
 	if det.Metadata["build_tool"] == "gradle" {
 		cfg.Build.Command = "./gradlew build -x test"
 		cfg.Build.Dependencies = []string{"openjdk-21", "build-base"}
-		cfg.Build.Env = map[string]string{"JAR_DIR": "build/libs"}
+		cfg.Build.Options = map[string]string{"JAR_DIR": "build/libs"}
 	} else {
 		cfg.Build.Command = "mvn package -DskipTests"
 		cfg.Build.Dependencies = []string{"openjdk-21", "maven", "build-base"}
-		cfg.Build.Env = map[string]string{"JAR_DIR": "target"}
+		cfg.Build.Options = map[string]string{"JAR_DIR": "target"}
 	}
 	// The Wolfi openjdk JRE does not put `java` on PATH, so use the absolute
 	// path from JAVA_HOME rather than a bare "java".
@@ -110,7 +110,7 @@ func (p *Pack) Plan(_ context.Context, _ string, cfg *types.NimpackConfig) (*typ
 	}
 
 	jarDir := "target" // Maven default; safe fallback for hand-authored configs
-	if dir, ok := cfg.Build.Env["JAR_DIR"]; ok && dir != "" {
+	if dir, ok := cfg.Build.Options["JAR_DIR"]; ok && dir != "" {
 		jarDir = dir
 	}
 
