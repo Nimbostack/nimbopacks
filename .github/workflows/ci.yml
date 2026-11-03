@@ -134,7 +134,12 @@ jobs:
   vuln:
     name: Vulnerabilities (govulncheck)
     runs-on: ubuntu-latest
-    continue-on-error: true
+    # No `continue-on-error: true` here. A job-level continue-on-error keeps the WORKFLOW
+    # green but still renders the job as a failed check in the pull-request list, so every
+    # PR carried a red X that meant "known, tracked, nobody can fix it in this PR" — the
+    # worst of both. The report-only behaviour lives in the step below instead: exit code 3
+    # (reachable vulnerabilities found) is published to the job summary and turned into a
+    # warning, while a tool or environment failure still fails the job.
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
@@ -149,8 +154,29 @@ jobs:
       # release jobs use. Without it a `toolchain` directive in go.mod could
       # silently pull a newer Go here, clearing the stdlib findings in the
       # report while the shipped binary stays vulnerable.
-      - name: Run govulncheck
+      - name: Run govulncheck (report-only)
         env:
           GOTOOLCHAIN: local
-        run: govulncheck ./...
+        run: |
+          set -o pipefail
+          rc=0
+          govulncheck ./... > /tmp/govulncheck.txt 2>&1 || rc=$?
+          if [ "$rc" -eq 3 ]; then
+            {
+              echo "### govulncheck: reachable vulnerabilities (report-only)"
+              echo ""
+              grep -E "Your code is affected by|No vulnerabilities found" /tmp/govulncheck.txt || true
+              echo ""
+              echo "<details><summary>Full output</summary>"
+              echo ""
+              echo '```'
+              tail -60 /tmp/govulncheck.txt
+              echo '```'
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=govulncheck::reachable vulnerabilities found — see the job summary. Blocking once the Go toolchain bump lands."
+            exit 0
+          fi
+          cat /tmp/govulncheck.txt
+          exit "$rc"
 
