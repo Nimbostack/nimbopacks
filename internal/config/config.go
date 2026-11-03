@@ -2,11 +2,13 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -64,6 +66,39 @@ func Validate(cfg *types.NimpackConfig) error {
 	return nil
 }
 
+// checkSchemaVersion reports whether the config states a schema version this release
+// understands. ADR-0003 A1 introduces validation with a warn-then-error ramp: every
+// malformed or unknown value warns in this release, and the error path arrives only with
+// the release that introduces "2". A missing version is the same shape of problem — the
+// field has never been enforced, so most configs on disk still omit it.
+func checkSchemaVersion(cfg *types.NimpackConfig) []string {
+	switch cfg.SchemaVersion {
+	case "":
+		return []string{`schema_version is missing; assuming "1" (it becomes required in the release that introduces "2")`}
+	case "1":
+		return nil
+	default:
+		return []string{fmt.Sprintf("schema_version %q is not supported by this release; loading leniently", cfg.SchemaVersion)}
+	}
+}
+
+// strictWarnings decodes the document a second time with KnownFields, which fails on a key
+// that no struct field claims, and turns that failure into a warning. Decoding stays
+// lenient — the point is that a typo such as `labels:` under `image:` is reported instead of
+// being silently dropped, which is how a config appears to set a value the build then
+// ignores.
+func strictWarnings(data []byte) []string {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	var strict types.NimpackConfig
+	err := dec.Decode(&strict)
+	if err == nil {
+		return nil
+	}
+	msg := strings.Join(strings.Fields(strings.ReplaceAll(err.Error(), "yaml: unmarshal errors:", "")), " ")
+	return []string{"config does not match the schema: " + msg}
+}
+
 func Load(srcDir, path string) (*types.NimpackConfig, error) {
 	if path == "" {
 		path = filepath.Join(srcDir, DefaultFilename)
@@ -79,7 +114,9 @@ func Load(srcDir, path string) (*types.NimpackConfig, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", path, err)
 	}
-	for _, w := range resolveBuildOptions(&cfg) {
+	warnings := append(checkSchemaVersion(&cfg), strictWarnings(data)...)
+	warnings = append(warnings, resolveBuildOptions(&cfg)...)
+	for _, w := range warnings {
 		fmt.Fprintf(os.Stderr, "warning: %s\n", w)
 	}
 	return &cfg, nil
