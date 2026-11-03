@@ -22,6 +22,10 @@ set -uo pipefail
 msg_file=${1:-}
 [ -n "$msg_file" ] && [ -f "$msg_file" ] || { echo "commit-msg: no message file"; exit 1; }
 
+# The raw file is what Git may record: with `git commit -m`, a line beginning with '#'
+# survives cleanup, so an internal key on such a line must be rejected too. Only the
+# subject and trailer checks read the comment-stripped view.
+raw=$(cat "$msg_file")
 subject=$(sed '/^#/d' "$msg_file" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' | head -1)
 body=$(sed '/^#/d' "$msg_file" | tail -n +2)
 
@@ -58,10 +62,10 @@ esac
 [ -n "$(printf '%s' "$subject" | sed 's/.*: //')" ] || die "subject has no description."
 
 # 2. Nothing an outside reader cannot resolve.
-keys=$(printf '%s\n%s\n' "$subject" "$body" \
+keys=$(printf '%s\n' "$raw" \
   | grep -oE '[A-Z]{2,5}-[0-9]{1,5}' | sort -u \
   | grep -vE '^(ADR|SHA|UTF|ISO|RFC|TLS|AES|HTTP|ES|GPL|CVE|ASN|SBOM|OCI|APK|X)-' || true)
-links=$(printf '%s\n%s\n' "$subject" "$body" \
+links=$(printf '%s\n' "$raw" \
   | grep -nE '/(NIMA|HOO|PAP)/issues/|paperclip|/home/[a-z]+/' || true)
 if [ -n "$keys" ] || [ -n "$links" ]; then
   if [ -n "$keys" ]; then
