@@ -149,7 +149,7 @@ func GetCapabilities(name string) Capabilities {
 	switch name {
 	case "wolfi":
 		return Capabilities{
-			Reproducible:   true,
+			Reproducible:   false, // melange signs with a fresh key per build; the digest moves
 			SBOM:           true,
 			AtomicPatching: true,
 			Sandboxed:      true,
