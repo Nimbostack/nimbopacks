@@ -467,7 +467,7 @@ A malicious template is still a malicious template; template review is the contr
 | **Lenses** | Complete Mediation, Fail Securely |
 
 **Evidence.** `config.Validate` is defined at `internal/config/config.go:18`.
-`grep -rn "config.Validate" --include=*.go.` returns the definition and
+`grep -rn "config.Validate" --include='*.go' .` returns the definition and
 `config_test.go` only. Neither `internal/pipeline/pipeline.go:29` nor
 `internal/update/update.go:44` calls it. Every build in the product runs on a config that
 has never been checked for anything, including the three fields `Validate` claims are
@@ -739,7 +739,7 @@ behaviour is locked in.
 
 ### 6.1 The headline fact
 
-**`tlsutil.NewTLSConfig` has zero callers.** `grep -rn "NewTLSConfig" --include=*.go.`
+**`tlsutil.NewTLSConfig` has zero callers.** `grep -rn "NewTLSConfig" --include='*.go' .`
 returns the definition and its doc comment. Nothing else. The package doc claims it is
 "Used by the toolchain manager, updater, and registry push operations"
 (`tlsutil.go:64–66`). It is used by none of them.
@@ -790,14 +790,14 @@ network path. The `//nolint:gosec` at `tlsutil.go:69` means the linter will not 
 3. **Required: sequence this against CFG-4's `Decoder.KnownFields(true)`, in this exact
  order, because doing steps 3 and 4 in one PR produces the worst available user
  experience.**
- 1. Keep `Insecure` in the struct.
- 2. `config.Validate` hard-fails on `insecure: true` with an explicit message — "this
- field is not implemented and must not be relied upon." (Not on `insecure: false`;
- that is a no-op the user can simply delete.)
- 3. CFG-4's `Decoder.KnownFields(true)` lands.
- 4. Remove the field one minor release later, by which point the explicit error has
- been doing the teaching. Landing `KnownFields(true)` before the explicit hard-fail
- replaces a specific, actionable error with a generic unknown-key error for anyone who
+  1. Keep `Insecure` in the struct.
+  2. `config.Validate` hard-fails on `insecure: true` with an explicit message — "this
+     field is not implemented and must not be relied upon." (Not on `insecure: false`;
+     that is a no-op the user can simply delete.)
+  3. CFG-4's `Decoder.KnownFields(true)` lands.
+  4. Remove the field one minor release later, by which point the explicit error has
+     been doing the teaching. Landing `KnownFields(true)` before the explicit hard-fail
+     replaces a specific, actionable error with a generic unknown-key error for anyone who
  copy-pasted `tls: { insecure: false }` from current docs.
 4. **Wire `NewTLSConfig`, after `Insecure` is removed** — not an either/or with deletion;
  TLS-2(b) explicitly needs it for the toolchain client, so "delete or wire" is resolved
@@ -1527,10 +1527,10 @@ is at stake.
 
 ## 11. Prioritised remediation list
 
-Ordered by `severity × exploitability`, then by cost to fix, **and sequenced explicitly
-within each tranche per **: when a tranche is over-subscribed, the actual execution
-order is otherwise chosen by whoever picks an item first, which silently overrides the
-prioritisation this document just derived. If only the first N of a tranche land, the N
+Ordered by `severity × exploitability`, then by cost to fix, and sequenced explicitly
+within each tranche: when a tranche is over-subscribed, the order an item is picked in
+would otherwise decide the execution order and silently override the prioritisation this
+document just derived. If only the first N of a tranche land, the N
 that land should be the N that were chosen. One branch and one PR each. Dates assume a
 2026-10-23 start and the SLA in `docs/security/README.md` (critical 7 days, high 30 days).
 
@@ -1621,7 +1621,7 @@ Stated plainly so the next revision knows what to close:
 
 - **Review cadence:** every minor release, and on any change to a §1.1 surface.
 - **Security sign-off** is required on PRs touching `internal/toolchain`,
- `internal/utils/`, `pkg/backend`, or `.github/workflows` — enforced via CI-4 once
+ `internal/utils/tlsutil`, `pkg/backend`, or `.github/workflows` — enforced via CI-4 once
  CODEOWNERS and branch protection land.
 - **Next revision must add:** `internal/remote/` when it exists; the registry push path;
  anything that introduces a network listener or an auth surface (which voids §1.3).

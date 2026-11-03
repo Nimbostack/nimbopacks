@@ -181,8 +181,11 @@ Three further corrections ride along, because they are the same four lines of co
    measured absent-layering as a **single** layer; ADR-0003 records it. PR #29 already corrects
    this line — noted here so the two changes do not collide.
 
-**Digest impact: none.** The emitted `apko.yaml` bytes are identical for every config that is
-valid today. This is a Go type split with no change to serialised output.
+**Digest impact: none for every config that ships today.** The emitted `apko.yaml` bytes are
+identical for all 50 shipped templates and samples. The one accepted input whose output does
+change is `run_as: 0`: today it is unrepresentable, and under A9 it becomes a valid request
+for root. That is a widening of what a config can say, not a change to what any existing
+config produces.
 
 **`schema_version` consequence: none.** Stays `"1"`.
 
@@ -366,9 +369,12 @@ Disposition: `*int`; when the `layering` block is present, `budget` is **REQUIRE
 - Rejecting now keeps the door open: because no valid config omits `budget`, introducing a
   default in a later v1 release is a **non-breaking** addition. Defaulting now and changing the
   default later would be breaking. Reject-now is the forward-compatible order.
-- Implementations SHOULD reject a budget above 126. Container runtimes cap at 127 layers total,
-  total is budget + 1 (fact 1), and the spec should not let a config request an unpullable image.
-  SHOULD rather than MUST, because the cap is a runtime property and not ours to freeze.
+- Implementations MUST reject a budget above 126. Container runtimes cap at 127 layers total,
+  total is budget + 1 (fact 1), and accepting a config that requests an unpullable image is a
+  failure we can detect at load time. MUST rather than SHOULD so the requirement and its
+  verification test agree: a conforming implementation that only SHOULD-rejects would pass the
+  requirement and fail the test. The cap is a runtime property, so if a runtime raises it the
+  constant moves — but it moves in one place, and the test moves with it.
 
 Normative text, now sayable precisely:
 
