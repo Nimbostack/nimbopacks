@@ -158,27 +158,31 @@ func TestMeetsThreshold(t *testing.T) {
 	}
 }
 
-func TestMeetsThreshold_ExcludesPinnedPackages(t *testing.T) {
+func TestMeetsThreshold_CountsPinnedPackages(t *testing.T) {
 	pinnedCritical := types.PackageUpdate{Package: "openssl", Severity: "Critical", CVEs: []string{"CVE-2024-001"}, Pinned: true}
 	unpinnedHigh := types.PackageUpdate{Package: "curl", Severity: "High", CVEs: []string{"CVE-2024-002"}, Pinned: false}
 
+	// A pin says "we are deliberately holding this version". It does not waive the CVE:
+	// waiving is grype's job, through .grype.yaml and an OpenVEX justification. Counting a
+	// pinned finding as exempt would make this tool a suppression mechanism of its own, and
+	// a pin taken before a disclosure would silently keep a critical CVE out of the gate.
 	onlyPinned := &types.UpdateReport{Packages: []types.PackageUpdate{pinnedCritical}}
-	if MeetsThreshold(onlyPinned, "critical") {
-		t.Error("a pinned package's CVE must not contribute to the exit-code threshold")
+	if !MeetsThreshold(onlyPinned, "critical") {
+		t.Error("a pinned package's critical CVE must still fail the gate")
 	}
-	if MeetsThreshold(onlyPinned, "low") {
-		t.Error("a pinned package's CVE must not contribute to the exit-code threshold, even at a low bar")
+	if !MeetsThreshold(onlyPinned, "low") {
+		t.Error("a pinned package's critical CVE must fail at every threshold below it")
+	}
+
+	// The pin stays metadata: the finding is still in the report, still flagged, and its
+	// severity is unchanged. Only the exemption is gone.
+	if len(onlyPinned.Packages) != 1 || !onlyPinned.Packages[0].Pinned {
+		t.Error("pinned finding must remain in the report, flagged as pinned")
 	}
 
 	mixed := &types.UpdateReport{Packages: []types.PackageUpdate{pinnedCritical, unpinnedHigh}}
-	if !MeetsThreshold(mixed, "high") {
-		t.Error("an unpinned finding must still trigger the threshold even when a pinned finding is also present")
-	}
-
-	// The finding itself must still be present in the report regardless of pin status —
-	// only its contribution to the exit code is suppressed.
-	if len(onlyPinned.Packages) != 1 || !onlyPinned.Packages[0].Pinned {
-		t.Error("pinned finding must remain in the report, not be removed")
+	if !MeetsThreshold(mixed, "critical") {
+		t.Error("the pinned critical finding alone must meet the critical threshold")
 	}
 }
 

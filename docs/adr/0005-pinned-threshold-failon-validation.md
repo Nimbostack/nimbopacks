@@ -29,11 +29,10 @@ Two independent bugs were found in `internal/update/update.go`:
    (`update.go:180`) returns `-1` for any string it doesn't recognise. `MeetsThreshold`
    compares each finding's rank against that `-1` threshold, and every severity
    (`negligible` and up, rank ≥ 0) is `≥ -1`. So `--fail-on critcial` (typo) does not
-   error — it makes `MeetsThreshold` match everything, which looks like "stricter",
-   but the real risk is the opposite typo pattern (a value that happens to coincide
-   with nothing, or a CI templating bug that passes an empty string) producing a
-   gate that looks live but passes when it shouldn't. Either way, a flag typo must be
-   caught, not silently reinterpreted.
+   error: it makes every finding clear the threshold, so the gate fails on the first
+   report that has any finding at all and passes on an empty one. That is noise where a
+   typo should have been an error, and it is indistinguishable from a real vulnerability
+   gate doing its job. A flag typo must be caught, not silently reinterpreted.
 
 The standing invariant that both fixes must respect: *"CVE policy is grype's —
 nimbopacks implements no suppression of its own"* (`CLAUDE.md`, CVE Scanning section).
@@ -42,14 +41,18 @@ the report; they may only change how a finding maps to an exit code.
 
 ## Decision
 
-1. `MeetsThreshold` skips any `PackageUpdate` with `Pinned == true` when deciding
-   whether the threshold is met. The finding is otherwise unchanged: it still appears
-   in `report.Packages`, still counts in `report.Summary`'s CVE count, and still
-   triggers `HasCritical`/`HasHigh`. Only its contribution to `MeetsThreshold`'s
-   boolean result is removed. Every output format (text, table, JSON, SARIF) renders
-   a `pinned` marker on the finding so a human or a SARIF consumer can still see it:
-   `pinned` means "operator acknowledged, held at this version" — it is not a
-   suppression and does not touch `.grype.yaml` or grype's own output.
+1. **Amended 2026-10-26 — a pinned package counts toward the threshold like any other.**
+   The finding is unchanged: it still appears in `report.Packages`, still counts in
+   `report.Summary`, and every output format (text, table, JSON, SARIF) still renders a
+   `pinned` marker. What changed is the exit code.
+
+   As first written, this decision excluded `Pinned == true` from `MeetsThreshold`. Review
+   found that the exclusion is exactly what the standing invariant in the Context forbids: a
+   pin is usually taken *before* a CVE is disclosed, so the exclusion let a pin keep a
+   critical finding out of the gate — a suppression implemented here, not in grype. The
+   distinction the original text leaned on ("acknowledgement, not a waiver") does not survive
+   contact with the exit code: a finding that cannot fail the build has been waived.
+   Suppression stays grype's job, through `.grype.yaml` and an OpenVEX justification.
 
 2. Add `ValidFailOn(failOn string) bool`, checking against the five documented values
    (`critical`, `high`, `medium`, `low`, `none`), case-insensitive. `cmd/nimbopacks`
