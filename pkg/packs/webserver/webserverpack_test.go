@@ -146,8 +146,8 @@ func TestGenerateConfig_WiresCustomNginxConf(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Build.Env["NGINX_CONF_PATH"] != "nginx.conf" {
-		t.Errorf("expected NGINX_CONF_PATH=nginx.conf in build env, got %q", cfg.Build.Env["NGINX_CONF_PATH"])
+	if cfg.Build.Options["NGINX_CONF_PATH"] != "nginx.conf" {
+		t.Errorf("expected NGINX_CONF_PATH=nginx.conf in build env, got %q", cfg.Build.Options["NGINX_CONF_PATH"])
 	}
 }
 

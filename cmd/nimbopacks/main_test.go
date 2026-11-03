@@ -6,6 +6,26 @@ import (
 	"testing"
 )
 
+func TestUpdateCmd_RejectsUnrecognisedFailOn(t *testing.T) {
+	cmd := updateCmd()
+	cmd.SetArgs([]string{"--check", "--fail-on", "hihg", "/nonexistent-src-dir"})
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected an error for an unrecognised --fail-on value")
+	}
+	// Must not be the CVE-threshold sentinel: that exits 1, but a bad flag
+	// is a config error and must exit 2 (see main()'s error handling).
+	if err == errCVEThreshold {
+		t.Fatal("unrecognised --fail-on must not be reported as errCVEThreshold (exit 1); it must exit 2")
+	}
+	if !strings.Contains(err.Error(), "fail-on") {
+		t.Errorf("expected error to mention --fail-on, got: %v", err)
+	}
+}
+
 func TestPromptOverwrite_Yes(t *testing.T) {
 	for _, input := range []string{"y\n", "Y\n", "yes\n", "YES\n", "Yes\n"} {
 		r := strings.NewReader(input)

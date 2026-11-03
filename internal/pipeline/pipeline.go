@@ -4,6 +4,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/Nimbostack/nimbopacks/internal/config"
 	"github.com/Nimbostack/nimbopacks/internal/pack/registry"
@@ -18,6 +19,16 @@ type BuildOptions struct {
 	Push        bool
 	BackendName string // "wolfi", or "" for auto-select
 	CACertPath  string // CLI/env override for custom CA cert
+}
+
+// portsWarning returns the once-per-build stderr message for a config that
+// declares image.ports against a backend that cannot express exposed-port
+// image metadata (ADR-0003 A4), or "" if no warning applies.
+func portsWarning(ports []string, backendName string, caps backend.Capabilities) string {
+	if len(ports) == 0 || caps.ExposedPorts {
+		return ""
+	}
+	return fmt.Sprintf("warning: image.ports is set but backend %q cannot express exposed-port image metadata; ignoring\n", backendName)
 }
 
 func Build(ctx context.Context, opts BuildOptions) (*backend.ImageResult, error) {
@@ -65,6 +76,10 @@ func Build(ctx context.Context, opts BuildOptions) (*backend.ImageResult, error)
 		fmt.Print(" (reproducible, SBOM)")
 	}
 	fmt.Println()
+
+	if msg := portsWarning(cfg.Image.Ports, b.Name(), caps); msg != "" {
+		fmt.Fprint(os.Stderr, msg)
+	}
 
 	// 3. Plan.
 	fmt.Println("[3/4] Planning build...")

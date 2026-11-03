@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Nimbostack/nimbopacks/pkg/backend"
 )
 
 func writeFile(t *testing.T, dir, name, content string) {
@@ -72,5 +74,27 @@ func TestBuildOptions_Defaults(t *testing.T) {
 	}
 	if opts.BackendName != "" {
 		t.Error("BackendName should default to empty (auto-select)")
+	}
+}
+
+// TestPortsWarning covers ADR-0003 A4's verification requirement: a config
+// that sets image.ports against a backend that cannot express exposed-port
+// metadata warns, once, naming the backend; no ports means no warning.
+func TestPortsWarning(t *testing.T) {
+	noExposedPorts := backend.Capabilities{ExposedPorts: false}
+	hasExposedPorts := backend.Capabilities{ExposedPorts: true}
+
+	if msg := portsWarning(nil, "wolfi", noExposedPorts); msg != "" {
+		t.Errorf("expected no warning when ports is unset, got: %q", msg)
+	}
+	if msg := portsWarning([]string{"8080"}, "wolfi", hasExposedPorts); msg != "" {
+		t.Errorf("expected no warning when backend supports exposed ports, got: %q", msg)
+	}
+	msg := portsWarning([]string{"8080"}, "wolfi", noExposedPorts)
+	if msg == "" {
+		t.Fatal("expected a warning when ports is set and the backend can't express it")
+	}
+	if !strings.Contains(msg, "wolfi") {
+		t.Errorf("expected warning to name the backend, got: %q", msg)
 	}
 }

@@ -213,10 +213,35 @@ func isPinned(pkg, version string, pinned []string) bool {
 	return false
 }
 
+// validFailOnValues are the recognised --fail-on / update.pinned threshold values.
+var validFailOnValues = map[string]bool{
+	"none":     true,
+	"low":      true,
+	"medium":   true,
+	"high":     true,
+	"critical": true,
+}
+
+// ValidFailOn reports whether failOn is a recognised --fail-on value.
+// An unrecognised value (e.g. a typo) must be rejected by the caller rather
+// than silently passed to MeetsThreshold, where severityRank's -1 fallback
+// would make every finding clear the threshold.
+func ValidFailOn(failOn string) bool {
+	return validFailOnValues[strings.ToLower(failOn)]
+}
+
 // MeetsThreshold reports whether the report has CVEs at or above the failOn severity.
-// failOn values: "critical", "high", "medium", "low", "none".
+// failOn values: "critical", "high", "medium", "low", "none". Callers must validate
+// failOn with ValidFailOn first; an unrecognised value is never passed here.
+//
+// A pinned package counts like any other. `update.pinned` records that the operator is
+// deliberately holding a version; it is not a vulnerability waiver, and treating it as
+// one would make this tool a CVE-suppression mechanism of its own — which the standing
+// rule forbids (suppression is grype's job, through .grype.yaml and an OpenVEX
+// justification). The pin still shows on the finding in every format, so the reader can
+// see why the version is held, and the gate still refuses to pass over a critical CVE.
 func MeetsThreshold(report *types.UpdateReport, failOn string) bool {
-	if failOn == "none" {
+	if strings.ToLower(failOn) == "none" {
 		return false
 	}
 	threshold := severityRank(failOn)

@@ -17,7 +17,7 @@ build:
     - nodejs-20
     - npm
     - build-base
-  env:
+  options:
     OUTPUT_DIR: dist  # Vite/Vue default. Change to "build" for CRA, "out" for Next.
 
 image:
@@ -27,8 +27,6 @@ image:
     - nginx
     - ca-certificates-bundle
   run_as: 65532
-  ports:
-    - "8080"
 
 # The default nginx.conf includes:
 #   - SPA fallback (try_files → /index.html)
@@ -38,6 +36,3 @@ image:
 #   - /healthz endpoint
 #
 # To customize, place your own nginx.conf in the project root.
-
-update:
-  auto_check: true

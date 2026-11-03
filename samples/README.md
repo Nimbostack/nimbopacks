@@ -123,5 +123,4 @@ for production container images:
   image is unambiguous (`go-rest-sample`, `dotnet-webapi-sample`, …).
 - All HTTP samples listen on port `8080` and expose `/` and `/healthz`.
 - All images run as a non-root user (`run_as: 65532`).
-- All `nimpack.yaml` files enable `update.auto_check: true` so a build
-  surfaces CVEs in the resulting image.
+- Run `nimbopacks update --check` in CI to surface CVEs in the resulting image.

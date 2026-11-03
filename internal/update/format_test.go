@@ -134,6 +134,78 @@ func TestFormatSARIF_Structure(t *testing.T) {
 	}
 }
 
+func TestFormatText_FlagsPinned(t *testing.T) {
+	pkg := types.PackageUpdate{
+		Package:        "openssl",
+		CurrentVersion: "3.1.4-r0",
+		CVEs:           []string{"CVE-2024-1234"},
+		Severity:       "Critical",
+		Pinned:         true,
+	}
+	var buf bytes.Buffer
+	if err := Format(makeReport(pkg), "text", &buf); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "openssl") || !strings.Contains(got, "CVE-2024-1234") {
+		t.Errorf("pinned finding must still be reported, not hidden:\n%s", got)
+	}
+	if !strings.Contains(got, "PINNED") {
+		t.Errorf("expected pinned flag in text output:\n%s", got)
+	}
+}
+
+func TestFormatTable_FlagsPinned(t *testing.T) {
+	pkg := types.PackageUpdate{
+		Package:  "openssl",
+		Severity: "Critical",
+		CVEs:     []string{"CVE-2024-1234"},
+		Pinned:   true,
+	}
+	var buf bytes.Buffer
+	if err := Format(makeReport(pkg), "table", &buf); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "PINNED") {
+		t.Errorf("table missing PINNED column:\n%s", got)
+	}
+	if !strings.Contains(got, "yes") {
+		t.Errorf("expected pinned row marked yes:\n%s", got)
+	}
+}
+
+func TestFormatSARIF_FlagsPinned(t *testing.T) {
+	pkg := types.PackageUpdate{
+		Package:  "openssl",
+		Severity: "Critical",
+		CVEs:     []string{"CVE-2024-1234"},
+		Pinned:   true,
+	}
+	var buf bytes.Buffer
+	if err := Format(makeReport(pkg), "sarif", &buf); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), `"pinned": true`) {
+		t.Errorf("expected pinned property in SARIF output:\n%s", buf.String())
+	}
+}
+
+func TestFormatJSON_IncludesPinned(t *testing.T) {
+	pkg := types.PackageUpdate{Package: "openssl", Severity: "Critical", Pinned: true}
+	var buf bytes.Buffer
+	if err := Format(makeReport(pkg), "json", &buf); err != nil {
+		t.Fatal(err)
+	}
+	var out types.UpdateReport
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Packages) != 1 || !out.Packages[0].Pinned {
+		t.Errorf("expected pinned=true in JSON output: %+v", out.Packages)
+	}
+}
+
 func TestFormat_UnknownFormat(t *testing.T) {
 	var buf bytes.Buffer
 	err := Format(makeReport(), "xml", &buf)

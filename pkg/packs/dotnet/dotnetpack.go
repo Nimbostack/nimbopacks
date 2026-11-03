@@ -185,7 +185,6 @@ func (p *Pack) GenerateConfig(_ context.Context, _ string, detected *types.Detec
 		"ASPNETCORE_URLS":                       "http://+:8080",
 	}
 	cfg.Image.Entrypoint = "dotnet"
-	cfg.Image.Ports = []string{"8080"}
 	cfg.Build.Dependencies = []string{fmt.Sprintf("dotnet-%s-sdk", runtimeVer), "build-base"}
 
 	// Handle monorepo: generate artifacts from detected projects.

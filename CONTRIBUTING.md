@@ -127,10 +127,12 @@ The `go:embed` directive in `pkg/templates/` picks it up automatically at next b
 This project uses [Conventional Commits](https://www.conventionalcommits.org):
 
 ```
-<type>[optional scope]: <description>
+<type>(<scope>): <description>
 ```
 
-Allowed types: `feat`, `fix`, `docs`, `chore`, `refactor`, `ci`
+Allowed types: `feat`, `fix`, `docs`, `chore`, `refactor`, `ci`, `test`, `perf`, `build`,
+`revert`. The scope is the package or area you touched — `toolchain`, `config`, `update`,
+`packs/golang`, `ci`.
 
 ```
 feat: add ruby pack
@@ -139,11 +141,42 @@ docs: update contributing guide
 refactor(pipeline): simplify plan execution
 ```
 
-CI enforces this on every PR. To catch violations locally:
+The subject is imperative, lower case after the colon, no trailing full stop, and the whole
+line fits in 72 characters. Put the reason in the body: what was wrong or missing, what the
+change does about it, and the command you ran that shows it works. A reviewer should be able
+to judge the change from the message alone.
+
+### This repository is public
+
+Do not cite anything a reader outside the company cannot open: no work-item keys from our
+board (`ABC-123`), no board links, no internal host paths, no agent or reviewer names. The
+history is part of what people read; a key is noise to everyone who is not us, and the
+ticket already holds that context. Describe the change instead.
+
+### Co-authorship trailer
+
+Commits produced by our automation end with:
+
+```
+Co-authored-by: Nimbostack Agentic Team <Nimbostack@users.noreply.github.com>
+```
+
+The hook adds this obligation only when the committer address is on a `nimbostack` domain
+(or when `NP_AGENT_COMMIT=1` is set), so an outside contributor is never asked for it. A
+human committing from our domains can skip it with `NP_HUMAN_COMMIT=1 git commit ...`.
+
+### Enforce it locally
+
+CI lints commits on every pull request, but the fast feedback is local:
 
 ```bash
-task hooks
+task hooks          # installs scripts/commit-msg as .git/hooks/commit-msg
 ```
+
+The hook rejects a subject over 72 characters, a non-conventional type, a trailing full
+stop, an internal key or board link, and a missing trailer on an automated commit. Do not
+use `git commit --no-verify` to get past it; if the rule is wrong, change the hook in its
+own commit.
 
 ## Running Tests
 
