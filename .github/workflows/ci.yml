@@ -23,7 +23,7 @@ jobs:
       # baseline for this repo yet, and flipping straight to `egress-policy:
       # block` without one risks breaking every PR the moment a tool resolves
       # an unlisted host.
-      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -45,7 +45,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       # audit-mode only; see the comment in the lint job above.
-      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # audit-mode only; see the comment in the lint job above.
-      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+      - uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
         with:
           egress-policy: audit
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
