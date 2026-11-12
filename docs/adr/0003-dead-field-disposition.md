@@ -594,7 +594,7 @@ Two consequences leave this ADR rather than sitting in it:
 | **Product claim vs. capability flag** — `CLAUDE.md:7` and `README.md:10` advertise "reproducible" images; `backend.go` now reports `Reproducible: false`. | CTO | Decide what the headline claim becomes, then reconcile both files and the v1 spec's reproducibility clause in one change. |
 | **A8b** — a real `build.environment` channel mapping to melange's `environment.environment` (`GOMODCACHE`). Additive and non-breaking, but a new public schema field. | CTO to accept; Principal Architect to spec | A short ADR note before the freeze. Must land before `schema_version: "1"` is normative or it needs a migration note. |
 | **A9, A10, A11, A13** — `image.run_as` zero value, `layering.strategy` enum, `layering.budget` zero value, `artifacts[].dest` three behaviours. | Principal Architect | **ADR-0004**, together with the `LayeringConfig` / `ApkoConfig` / `MelangeConfig`-in-`internal/types` decoupling the CTO asked be raised separately. |
-| **A14 implementation** — exclude pinned packages from the `--check` threshold, and make a `--fail-on` typo exit `2`. | Engineering | **ADR-0005** plus the code change, carrying the two conditions stated above. |
+| **A14 implementation** — exclude pinned packages from the `--check` threshold, and make a `--fail-on` typo exit `2`. | Engineering | **ADR-0005** plus the code change, carrying the two conditions stated above. **Reversed 2026-10-26:** the exclusion is exactly the suppression the standing invariant forbids, so a pinned package now counts toward the threshold like any other. Only the `--fail-on` half shipped as proposed — see [ADR-0005](0005-pinned-threshold-failon-validation.md), decision 1. |
 
 ---
 

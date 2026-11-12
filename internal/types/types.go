@@ -196,7 +196,13 @@ type Artifact struct {
 
 // UpdateConfig controls the CVE patching workflow.
 type UpdateConfig struct {
-	// Pinned packages won't be updated automatically.
+	// Pinned records that a package is deliberately held at a known version.
+	// Entries are "name" (every version) or "name=version" (that version only).
+	//
+	// This is a reporting marker, not a waiver: a pinned package is flagged
+	// [PINNED] in every output format and still counts toward the --fail-on
+	// threshold, so it can still fail `update --check`. Suppressing a CVE is
+	// grype's job, through .grype.yaml. See ADR-0005, decision 1.
 	Pinned []string `yaml:"pinned,omitempty" json:"pinned,omitempty"`
 
 	// GrypeConfig is the path to a grype policy file (.grype.yaml).

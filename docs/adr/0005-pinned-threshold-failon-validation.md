@@ -1,6 +1,6 @@
-# 0005. Exclude pinned packages from the `update --check` threshold, and validate `--fail-on`
+# 0005. Count pinned packages toward the `update --check` threshold, and validate `--fail-on`
 
-- **Status:** Accepted — 2026-10-23
+- **Status:** Accepted — 2026-10-23; decision 1 amended 2026-10-26
 - **Date:** 2026-10-23
 - **Deciders:** CTO
 - **Affects:** `internal/update/update.go`, `internal/update/format.go`, `cmd/nimbopacks/main.go`
@@ -25,7 +25,8 @@ Two independent bugs were found in `internal/update/update.go`:
    comment was a promise the code didn't keep — this is a bug, not a new schema
    question.
 
-2. **An unrecognised `--fail-on` value silently disables the gate.** `severityRank`
+2. **An unrecognised `--fail-on` value silently turns the gate into "fail on any
+   finding".** `severityRank`
    (`update.go:180`) returns `-1` for any string it doesn't recognise. `MeetsThreshold`
    compares each finding's rank against that `-1` threshold, and every severity
    (`negligible` and up, rank ≥ 0) is `≥ -1`. So `--fail-on critcial` (typo) does not

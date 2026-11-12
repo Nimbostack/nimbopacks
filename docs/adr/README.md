@@ -20,7 +20,7 @@ that uses the existing extension points.
 |---|---|---|
 | [0003](0003-dead-field-disposition.md) | Disposition the seven parsed-and-ignored `nimpack.yaml` fields before the v1 freeze | **Accepted** 2026-10-23 |
 | [0004](0004-schema-wire-format-separation.md) | Separate the `nimpack.yaml` schema types from the backend wire formats, and close the four layering/artifact ambiguities | **Accepted** 2026-10-23 |
-| [0005](0005-pinned-threshold-failon-validation.md) | Exclude pinned packages from the `update --check` threshold, and validate `--fail-on` | **Accepted** 2026-10-23 |
+| [0005](0005-pinned-threshold-failon-validation.md) | Count pinned packages toward the `update --check` threshold, and validate `--fail-on` | **Accepted** 2026-10-23, decision 1 amended 2026-10-26 |
 
 Numbers 0001 and 0002 are reserved: 0001 for the `backend.Backend` abstraction baseline
 and 0002 for the `schema_version` and compatibility policy. Both are referenced by the
