@@ -5,17 +5,16 @@
 | **Revision** | 2 — incorporates the architecture review of 2026-10-23 |
 | **Date** | 2026-10-23 |
 | **Author** | Security Engineer |
-| **Reviewers** | Principal Architect (architecture invariants, approved rev 2 with required edits), CTO (risk acceptance, pending) |
+| **Reviewers** | Principal Architect (architecture invariants), CTO (risk acceptance) |
 | **Code reviewed** | `main` @ `3f962f6` |
-| **Status** | Architecture-reviewed, out for PR |
 
 This is a retrospective threat model: the code exists, so the surfaces below were read
 rather than designed. Every finding was derived by reading the named file at the named
 line on `3f962f6`. Where a claim could not be demonstrated in this environment, it says
 so and says why it is still believed to be real.
 
-**Revision 2 changelog.** All 7 required edits and all 4 recommended edits from
-the Principal Architect's review are folded in: CFG-2 ships with generate-time name
+**Revision 2 changelog.** The architecture review's required and recommended edits are
+folded in: CFG-2 ships with generate-time name
 normalisation; CFG-3's regex is replaced and its claim is split into confirmed/unverified
 halves; TCH-1's lock is `go:embed`-ed and never project-resolved; TLS-1 is sequenced
 against CFG-4; TLS-2's mitigation is re-addressed to `pkg/backend/wolfi/` instead of
@@ -24,9 +23,8 @@ against CFG-4; TLS-2's mitigation is re-addressed to `pkg/backend/wolfi/` instea
 from every place that independently derived it; `KnownFields(true)` is its own CFG-4
 mitigation; §1.3 gains an out-of-tree-templates entry; and §11's ordering reflects CFG-4's
 promotion to P0, a new P0 item for the `tlsutil` split, and an explicit land-in-this-order
-sequence rather than one shared date. The full review is on
-the architecture review; its binding schema ruling (v1 is unfrozen pending
-`docs/spec/nimpack-v1.md`) is recorded in §4.1.
+sequence rather than one shared date. The review's binding schema ruling — v1 is unfrozen
+pending `docs/spec/nimpack-v1.md` — is recorded in §4.1.
 
 ---
 
@@ -48,12 +46,11 @@ the architecture review; its binding schema ruling (v1 is unfrozen pending
 - **`internal/remote/`** — remote git sources, URL parsing, `git` argument injection,
  `//subdir` path traversal. **This package does not exist in this checkout and there is
  no `feature-remote-repos` branch.** Modelling it now would be fiction. It must be
- modelled before the first line of that package merges; the charter already names it as
- a sign-off surface.
+ modelled before the first line of that package merges, and it is a security sign-off
+ surface when it arrives.
 - **Registry push authentication.** `AssembleImage` shells out to `docker push`
  (`wolfi.go:229`) and inherits ambient Docker credentials. Deferred until a first-class
  push path exists.
-- **The Paperclip agent control plane.** Out of this repository's trust boundary.
 
 ### 1.3 Not modelled because the surface does not exist
 
@@ -64,7 +61,7 @@ future change adds a network service, a registry proxy, or an auth surface, this
 is void and the broader lens set must be applied before that change merges.**
 
 - **Out-of-tree or remote template loading.** Today, every template is `go:embed`-ed from
- `pkg/templates/templates/` ( pass 3, item D). That means templates ship inside the
+ `pkg/templates/templates/`. That means templates ship inside the
  binary and are reviewed as source — a genuine positive control, not an absence of one.
  The risk arrives only if a future change adds a template source outside the binary (a
  remote registry, a `--template-dir` flag, a URL). That change must trip this review
@@ -120,7 +117,7 @@ the invoking environment — an inbound trust dependency into the NIMBOPACKS PRO
 that the diagram above does not show. CFG-2 is the finding that exploits this crossing
 (an attacker-controlled `project.name` plus the victim's ambient credentials), but it is
 filed under Surface 1 even though the boundary it crosses is TB-4. Noted here rather than
-redrawn — per, cheaper and sufficient for this revision.
+redrawn: cheaper and sufficient for this revision.
 
 **TB-6 is new in this revision.** `cache.CacheDir` (`internal/cache/cache.go:24`)
 resolves to `~/.nimbopacks/cache`; `NewBuildWorkDir` (`:40`) allocates a fresh timestamped
@@ -138,7 +135,7 @@ dir rather than in `CacheDir`'s root, specifically so it does not create one.
 Four independent findings in this document derive the same rule from first principles —
 CFG-1's `--ca-cert` carve-out, TLS-1's move to an environment variable, RUN-1's
 CLI-flag-only runner, and the `toolchain.lock` placement decision (§5, TCH-1). Stated once
-here per, and cited by name from each:
+here, and cited by name from each:
 
 > **Repository content MUST NOT be able to widen a trust decision.** `nimpack.yaml`
 > travels with a fork PR and is written by whoever opened it. A CLI flag or an environment
@@ -150,9 +147,8 @@ here per, and cited by name from each:
 
 ## 3. Scoring
 
-Severity and exploitability are scored **separately**, per the review bar. A critical
-finding that needs a nation-state to trigger is not the same risk as a medium finding a
-drive-by PR can hit.
+Severity and exploitability are scored **separately**. A critical finding that needs a
+nation-state to trigger is not the same risk as a medium finding a drive-by PR can hit.
 
 **Severity (S)** — impact assuming the attacker succeeds:
 
@@ -195,7 +191,7 @@ must be written down and enforced rather than left implicit:
 Everything below is about the parts of the config that are *not* obviously code and that
 a reader would therefore assume are inert data.
 
-### 4.1 Schema and compatibility ruling (binding, Principal Architect, )
+### 4.1 Schema and compatibility ruling (binding; Principal Architect, 2026-10-23)
 
 Several Phase 1 mitigations below change `types.TLSConfig` or add validation that an
 existing `nimpack.yaml` could fail. Each is called out as breaking where it is. The
@@ -258,8 +254,8 @@ prints only `→ Custom CA certificates configured` (`pipeline.go:87`).
 **Blast radius.** Any secret readable by the build user on a machine that builds an
 attacker-supplied config, published to wherever the image goes. The realistic victims are
 (a) a CI job that builds a fork PR's `nimpack.yaml`, and (b) a user who runs a community
-template or sample. The charter's own goal of "templates built for community
-contribution" makes (b) a first-class path, not a hypothetical.
+template or sample. This project's stated goal of templates built for community
+contribution makes (b) a first-class path, not a hypothetical.
 
 **Not demonstrated:** the image could not be built — Docker is unavailable in this
 environment, so melange/apko cannot run. The file-read and the pipeline-step emission are
@@ -403,8 +399,8 @@ script. More subtly, a version containing a literal `${{` can introduce a *melan
 expansion that was never in the template — a genuine parser differential between "what
 nimbopacks wrote" and "what melange executes".
 
-**This claim has a confirmed first-order half and an unverified second-order half — split
-per, so the weaker half cannot be used to dismiss the stronger one:**
+**This claim has a confirmed first-order half and an unverified second-order half. They
+are split so the weaker half cannot be used to dismiss the stronger one:**
 
 - **First-order (confirmed by construction, no melange run needed):** `project.version`
  lands verbatim inside a melange `runs:` script (`pack.go:161` assigns it straight to
@@ -425,8 +421,8 @@ per, so the weaker half cannot be used to dismiss the stronger one:**
  could not be exercised.
 
 **I still believe the second-order half is real** because (a) the sink is one community
-template away — the charter's explicit goal is "contributors add templates without
-writing Go", and a template author embedding `${{package.version}}` in a `runs:` block is
+template away — an explicit design goal is that contributors add templates without
+writing Go, and a template author embedding `${{package.version}}` in a `runs:` block is
 the obvious thing to do; (b) nothing in the codebase prevents it, and nothing warns a
 template author; and (c) the root `melange.yaml` already proves the pattern is idiomatic
 here. This is a pre-positioned vulnerability waiting for its sink. Severity and
@@ -493,8 +489,8 @@ required.
 extend it to enforce CFG-2's name charset, CFG-3's version charset, `schema_version ==
 "1"`, and `tls.ca_cert_paths` containment. Ship a regression test per rule. **No
 architecture invariant is broken by wiring validation into `internal/pipeline` and
-`internal/update`** — per, the charter's "adding a pack/template must not require
-touching `internal/types/`/`internal/pipeline/`" rule constrains what a pack contributor
+`internal/update`** — the "adding a pack/template must not require touching
+`internal/types/`/`internal/pipeline/`" rule constrains what a pack contributor
 must edit, not a freeze on those packages; validated fields are owned by no pack, and
 validation is domain logic, so `internal/config` is the correct home for it.
 
@@ -680,8 +676,8 @@ filtered only by the suffix denylist above. Three concrete failure modes:
 3. **Order dependence.** The loop takes the *first* match in GitHub's asset ordering, so
  which binary is installed depends on an upstream-controlled list order. Non-determinism
  in a security decision is itself the defect — and it is not only a security defect:
- *order dependence on an upstream-controlled list* is a reproducibility violation by the
- charter's own constraint as well, which widens the set of reviewers who should care
+ *order dependence on an upstream-controlled list* violates this project's
+ reproducibility constraint as well, which widens the set of reviewers who should care
  about fixing it.
 
 **Phase 1 mitigation.** Replace the whole block with an **exact-name allowlist** derived
@@ -844,8 +840,8 @@ The predictable user response is to disable verification in their own build comm
 `npm config set strict-ssl false` or `pip --trusted-host`, inside the `build.command` that
 then ships into the image.
 
-**This is the exact pattern the charter says to treat as a bug rather than a tradeoff:
-the secure path is harder than the insecure one.**
+**This is the pattern to treat as a bug rather than a tradeoff: the secure path is
+harder than the insecure one.**
 
 **Required: the diagnosis is correct, but mitigation 1's original form would deepen an
 existing architecture violation, so its address changes, not its content.**
@@ -938,7 +934,7 @@ non-optional.** A build killed by `SIGKILL` orphans the file in the source tree;
 *next* build's `build.command` (`go build./...`, `npm pack`, a `COPY.`-shaped step) may
 then see a file the previous build left behind, so the same source plus the same
 `nimpack.yaml` no longer produces the same image digest — a direct violation of the
-charter's reproducibility constraint, the same TB-6 pattern noted in §2.
+project's reproducibility constraint, the same TB-6 pattern noted in §2.
 
 **Phase 1 mitigation, required to target the per-build work dir specifically, not
 `cache.CacheDir`'s shared root.** Write the bundle into the directory returned by
@@ -1181,7 +1177,7 @@ project's genuine identity, and have Rekor attest to it. Every downstream
 
 This is the **highest-blast-radius finding in the model**: it is the one place where a
 compromise produces a correctly-signed malicious release. Exploitability is low — Wolfi is
-well defended — but the charter's target is SLSA Build L3, and L3 does not permit an
+well defended — but the project targets SLSA Build L3, and L3 does not permit an
 unpinned dependency inside the build-and-sign step.
 
 **Secondary issues in the same workflow:**
@@ -1219,12 +1215,12 @@ sign-off.
 | **STRIDE** | Elevation of privilege, Spoofing, Repudiation |
 | **Severity** | **S5 Critical** |
 | **Exploitability** | **E3 Moderate** — requires repository write access, or a compromised workflow holding `contents: write` |
-| **Owner** | CTO → Board (@NeoMotsumi); branch and tag protection are Board-only |
+| **Owner** | CTO, escalating to the repository owner (@NeoMotsumi); branch and tag protection need admin rights |
 | **Lenses** | Least Privilege, CI/CD supply chain, Complete Mediation |
 
 `release.yml:3–6` triggers on `push: tags: ['v*.*.*']`. Branch protection on `main` does
-**not** protect tags — they are a separate GitHub ruleset. The governance model says "Merge
-to `main`, create release tags: **Board only**", but today that is policy text, not an
+**not** protect tags — they are a separate GitHub ruleset. Merging to `main` and creating
+release tags are reserved to the repository owner, but today that is policy text, not an
 enforced control.
 
 Consequences: anyone with write access can push `v9.9.9` and trigger a signed GHCR release
@@ -1235,16 +1231,17 @@ force-pushed tag breaks attribution — the Repudiation leg of STRIDE.
 
 **Phase 1 mitigation.**
 
-1. **Tag protection ruleset on `v*`** — restrict tag creation and deletion to the Board,
- and block tag updates. Board action; I cannot set this and must not pretend otherwise.
+1. **Tag protection ruleset on `v*`** — restrict tag creation and deletion to the
+ repository owner, and block tag updates. Requires repository admin rights; it cannot be
+ set from a pull request.
 2. Add a guard step at the top of `release.yml` that fails unless the tag's commit is an
  ancestor of `origin/main`. That is enforceable from this repository and catches
  releases cut from unreviewed trees.
 3. Branch protection on `main`: required CODEOWNERS review, required status checks
- (CI + CodeQL + Scorecard), signed commits, linear history, no force pushes. Board
- action.
+ (CI + CodeQL + Scorecard), signed commits, linear history, no force pushes. Also
+ requires admin rights.
 
-**Residual risk:** the Board's own account remains the trust root. Enforce 2FA/hardware
+**Residual risk:** the owning account remains the trust root. Enforce 2FA/hardware
 keys and require signed tags.
 
 ---
@@ -1318,13 +1315,13 @@ Actions behaviour.
 | **STRIDE** | Tampering, Repudiation |
 | **Severity** | **S3 Medium** |
 | **Exploitability** | **E5 Trivial** |
-| **Owner** | Security Engineer (author the file), Board (enable required review) |
+| **Owner** | Security Engineer (author the file), repository admin (enable required review) |
 | **Lenses** | Secure SDLC, Complete Mediation |
 
-`.github/CODEOWNERS` does not exist — verified. The charter requires security sign-off on
-any PR touching `internal/toolchain`, `internal/utils/tlsutil`, `pkg/backend`, or
-`.github/workflows`, and OpenSSF Scorecard's Branch-Protection check expects it. Today
-that rule depends entirely on a reviewer remembering it.
+`.github/CODEOWNERS` does not exist — verified. `docs/security/README.md` requires
+security sign-off on any PR touching `internal/toolchain`, `internal/utils/tlsutil`,
+`pkg/backend`, or `.github/workflows`, and OpenSSF Scorecard's Branch-Protection check
+expects it. Today that rule depends entirely on a reviewer remembering it.
 
 **Phase 1 mitigation.** Add `.github/CODEOWNERS`:
 
@@ -1340,9 +1337,9 @@ that rule depends entirely on a reviewer remembering it.
 /.grype.yaml @NeoMotsumi
 ```
 
-Agent reviewers have no GitHub identities, so the Board is the only reviewer GitHub can
-enforce against today; the agent-side sign-off continues to run through Paperclip. Enabling
-"Require review from Code Owners" is a Board action.
+A code owner must be a GitHub account, so today the repository owner is the only reviewer
+GitHub can enforce against. Enabling "Require review from Code Owners" needs repository
+admin rights.
 
 **Residual risk:** CODEOWNERS without required-review branch protection is advisory. Both
 halves are needed; the file is the half this repository can ship.
@@ -1404,13 +1401,12 @@ Missing controls: no `step-security/harden-runner` (no egress allowlisting or
 network-call audit on any job); no `govulncheck`; no `gitleaks`; no `gosec` in
 `.golangci.yaml`; no OSV-Scanner.
 
-**Status.** Three local branches already address parts of this — `security/pin-github-actions`,
-`security/ci-govulncheck`, `security/ci-gitleaks`. None is pushed; push authorisation is
-pending with the Board. `harden-runner` and `gosec` are not yet started.
+**Status since this revision was written.** The three tag references above are now
+SHA-pinned, `gitleaks` and `govulncheck` jobs exist in `ci.yml`, and `harden-runner` runs
+on the `ci.yml` jobs. `gosec` in `.golangci.yaml` is still outstanding.
 
-**Phase 1 mitigation.** Land the three existing branches; add `harden-runner` in
-`audit` mode first (to learn the real egress set) then `block`; enable `gosec` in
-`.golangci.yaml`.
+**Phase 1 mitigation.** Keep `harden-runner` in `audit` mode until the real egress set is
+known, then move it to `block`; enable `gosec` in `.golangci.yaml`.
 
 **Residual risk:** `harden-runner` in `audit` mode detects but does not prevent. Move to
 `block` after one week of audit data.
@@ -1463,15 +1459,15 @@ That is the intended cost. **Cross-reference:** Surface 6 below names the same c
 
 **STRIDE: Tampering, Information disclosure.**
 
-Added in revision 2 — pass 3 flagged this as a genuine gap: a surface that was
-simply absent, which reads as "not considered" rather than "considered and accepted."
+Added in revision 2, which flagged this as a genuine gap: a surface that was simply
+absent, which reads as "not considered" rather than "considered and accepted."
 
 **Accepted risk, stated explicitly so it reads as a decision.** `internal/update` reads
 `cfg.Update.GrypeConfig` — a `nimpack.yaml` field (`update.grype_config`,
 `types.go:207`) — and passes it to `grype --config <path>` (`update.go:55`,
 `grype.go:101-102`). A grype config can define `ignore` rules, and `update --check`'s exit
-code is a **public contract** the charter names explicitly (`0` clean, `1` at-or-above
-threshold, `2` tool error) — the contract CI pipelines gate merges on. So repository
+code is a **public contract** (`0` clean, `1` at-or-above threshold, `2` tool error) —
+the contract CI pipelines gate merges on. So repository
 content can steer which policy file governs the scan whose exit code gates the merge.
 **This is intended design, not a defect:** `CLAUDE.md` states "CVE matching is grype's
 job... Nimbopacks implements no suppression of its own... Triage goes through
@@ -1544,7 +1540,7 @@ that land should be the N that were chosen. One branch and one PR each. Dates as
 | 4 | **TCH-1** | `toolchain.lock` committed as `go:embed` at `internal/toolchain/toolchain.lock`, never CWD-resolved; mandatory SHA-256 verification before install; temp-file-then-rename; `fetchVerified` preserves the no-token-to-CDN split | S5·E4 | Security Engineer | **2026-10-28** |
 | 5 | **TCH-2** | Exact asset-name allowlist keyed off the same lock; delete the substring/denylist matcher | S4·E2 | Security Engineer | **2026-10-29** |
 | 6 | **CI-1** | Pin Wolfi packages by exact version in `wolfi-act`; split push and sign into separate steps | S5·E2 | Security Engineer | **2026-10-30** |
-| 7 | **CI-2** | Ancestor-of-`main` guard in `release.yml` (repo side) **+ Board: tag protection ruleset on `v*`** | S5·E3 | Security Eng + **Board** | **2026-10-30** |
+| 7 | **CI-2** | Ancestor-of-`main` guard in `release.yml` (repo side) **+ admin: tag protection ruleset on `v*`** | S5·E3 | Security Eng + **repository admin** | **2026-10-30** |
 
 ### P1 — Within 30 days
 
@@ -1554,10 +1550,10 @@ that land should be the N that were chosen. One branch and one PR each. Dates as
 | 9 | **CFG-3** | `project.version` charset validation, replaced regex `^[0-9]+(\.[0-9]+){0,3}$`; reject `${{`; fuzz `config.Load`. **Land after item 10 (RUN-1)** — RUN-1 is a severity multiplier for this item | S3·E3 | Security Engineer | 2026-11-22 |
 | 10 | **RUN-1** | Remove the silent docker fallback; require explicit `--runner docker`; make the valid `--runner` set backend-supplied, not hardcoded in `cmd/` | S4·E4 | Principal Architect + Security Engineer | 2026-11-22 |
 | 11 | **TLS-1** | Remove `tls.insecure` from `nimpack.yaml` via the four-step sequence against CFG-4's `KnownFields(true)`; wire `NewTLSConfig` after removal | S3·E5 | Security Engineer | 2026-11-22 |
-| 12 | **CI-6** | Land `security/pin-github-actions`, `security/ci-govulncheck`, `security/ci-gitleaks`; add `harden-runner` (audit) and `gosec` | S4·E2 | Security Engineer | 2026-11-22 |
+| 12 | **CI-6** | SHA-pin the remaining actions; add `gitleaks`, `govulncheck`, `harden-runner` (audit) and `gosec` | S4·E2 | Security Engineer | 2026-11-22 |
 | 13 | **TLS-3** | Move the CA bundle to the **per-build work dir** (`cache.NewBuildWorkDir`) at `0600`, never `CacheDir`'s shared root; confirm `cache clean` removes it; `.gitignore` entry; signal-safe cleanup | S3·E3 | Security Engineer | 2026-11-22 |
 | 14 | **CI-3** | Charset-validate sample names; heredoc `$GITHUB_OUTPUT` write | S3·E4 | Security Engineer | 2026-11-22 |
-| 15 | **CI-4** | Add `.github/CODEOWNERS`; **Board: enable required Code Owner review** | S3·E5 | Security Eng + **Board** | 2026-11-22 |
+| 15 | **CI-4** | Add `.github/CODEOWNERS`; **admin: enable required Code Owner review** | S3·E5 | Security Eng + **repository admin** | 2026-11-22 |
 | 16 | **CI-7** | Replace the blanket `fix-state: unknown` rule with per-CVE entries + OpenVEX docs | S3·n/a | Security Engineer | 2026-11-22 |
 | 17 | **UPD-1** | `update.grype_config` containment check, same helper as CFG-1 mitigation 1. Trivial to pair with item 3 (CFG-1) since it is the same mitigation shape and the same `config.Validate` call site | S2·E4 | Security Engineer | 2026-11-22 |
 
@@ -1572,23 +1568,18 @@ that land should be the N that were chosen. One branch and one PR each. Dates as
 | 22 | **RUN-2** | Gate the sysctl on `runner.environment == 'github-hosted'`; document the self-hosted guidance | S2·E5 | Security Engineer | 2026-12-15 |
 | 23 | **RUN-3** | ADR recording why the tool image ships `bash` and why that does not apply to produced images | S2·E1 | CTO + Security Engineer | 2026-12-15 |
 
-### Board-only items (cannot be done by an agent)
+### Items that need repository admin rights
 
-- **Tag protection ruleset on `v*`** (item 7) — requested 2026-10-23, still pending. Of
- limited value on its own: the repo-side ancestor guard in item 7 does not substitute for
- it.
+Neither can be landed by a pull request, so neither is closed by merging the work above.
+
+- **Tag protection ruleset on `v*`** (item 7). Of limited value on its own: the repo-side
+ ancestor guard in item 7 does not substitute for it.
 - **Branch protection on `main`** — required CODEOWNERS review, required status checks,
- signed commits, linear history, no force pushes (items 7, 15) — requested 2026-10-23,
- still pending. CODEOWNERS (item 15) does nothing without "require review from Code
- Owners" enabled.
-- **Push authorisation.** Resolved 2026-10-23: the Board ruled that host `gh` auth may be
- used directly, no separate bot identity is required. This threat-model PR and the three
- pending `security/*` CI branches (`pin-github-actions`, `ci-govulncheck`, `ci-gitleaks`)
- use it accordingly.
+ signed commits, linear history, no force pushes (items 7, 15). CODEOWNERS (item 15)
+ does nothing without "require review from Code Owners" enabled.
 
-Both still-pending asks should be tracked independently of the agent-side P0/P1 work above
-— Board turnaround is not on the team's schedule, and bundling them implicitly with
-agent-owned items risks the Board items being forgotten once the agent-owned items close.
+Track these separately from the P0/P1 items above. Bundling them with work that *can* ship
+in a pull request risks their being forgotten once that work closes.
 
 ---
 
@@ -1600,7 +1591,7 @@ Stated plainly so the next revision knows what to close:
  image build could be executed. CFG-1's final hop, CFG-3's second-order expansion
  semantics, and RUN-1's actual docker-runner privilege level all rest on code reading
  plus documented upstream behaviour, not on execution. Each is flagged in place.
- **Independently reviewed in:** CFG-1's last hop is sound and stronger than
+ **Independently re-checked:** CFG-1's last hop is sound and stronger than
  originally rated — the only `AppendCertsFromPEM` in the tree is unreachable dead code,
  confirmed by `grep`, so the claim is not an inference. RUN-1 is correctly scoped and not
  overstated — declining to claim container escape and instead claiming only the silent
@@ -1625,7 +1616,7 @@ Stated plainly so the next revision knows what to close:
  CODEOWNERS and branch protection land.
 - **Next revision must add:** `internal/remote/` when it exists; the registry push path;
  anything that introduces a network listener or an auth surface (which voids §1.3).
-- **ADRs owned by the Principal Architect, tracked from this document :**
+- **ADRs owned by the Principal Architect, tracked from this document:**
  ADR-0001 (backend-abstraction baseline) will cite this document for the `tlsutil`
  Wolfi leak (TLS-2) and for `--runner` as a Wolfi concept in the CLI surface (RUN-1);
  ADR-0002 will cover the `types.TLSConfig` changes (CFG-1, TLS-1, TLS-2) as one set; a

@@ -148,10 +148,10 @@ to judge the change from the message alone.
 
 ### This repository is public
 
-Do not cite anything a reader outside the company cannot open: no work-item keys from our
-board (`ABC-123`), no board links, no internal host paths, no agent or reviewer names. The
-history is part of what people read; a key is noise to everyone who is not us, and the
-ticket already holds that context. Describe the change instead.
+Do not cite anything a reader outside this repository cannot open: no keys from a private
+issue tracker (`ABC-123`), no links into one, no local filesystem paths, no reviewer
+names. The history is part of what people read, and a reference nobody can resolve is
+noise. Describe the change instead.
 
 ### Co-authorship trailer
 
@@ -174,7 +174,7 @@ task hooks          # installs scripts/commit-msg as .git/hooks/commit-msg
 ```
 
 The hook rejects a subject over 72 characters, a non-conventional type, a trailing full
-stop, an internal key or board link, and a missing trailer on an automated commit. Do not
+stop, a private tracker key or link, and a missing trailer on an automated commit. Do not
 use `git commit --no-verify` to get past it; if the rule is wrong, change the hook in its
 own commit.
 

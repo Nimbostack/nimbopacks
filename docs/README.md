@@ -7,8 +7,6 @@ Where each kind of document lives, and who owns it.
 | `adr/` | Architecture Decision Records — one per interface or structural decision | Principal Architect |
 | `spec/` | The normative `nimpack.yaml` specification and its JSON Schema | Principal Architect |
 | `security/` | Threat model, CVE operations, OpenVEX documents | Security Engineer |
-| `compliance/` | Control matrix, evidence, licensing reports | Compliance Manager |
-| `status/` | Measured baselines and release evidence snapshots | QA & Test Engineer |
 
 `CLAUDE.md` at the repo root is the authoritative description of the architecture and
 the pack interface. Nothing here overrides it. If a document here disagrees with
@@ -32,4 +30,3 @@ how an image is built — go straight to step 2.
 
 - ADRs: `adr/NNNN-kebab-title.md`, numbered in order, never renumbered.
 - Security documents: `security/<topic>.md`.
-- Status snapshots: `status/YYYY-MM-DD-<topic>.md`.

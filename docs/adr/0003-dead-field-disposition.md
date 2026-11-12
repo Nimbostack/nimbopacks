@@ -1,13 +1,13 @@
 # 0003. Disposition the seven parsed-and-ignored `nimpack.yaml` fields before the v1 freeze
 
 - **Status:** Accepted — 2026-10-23
-- **Date:** 2026-10-23 (revised same day after the review build-environment verification)
+- **Date:** 2026-10-23 (revised the same day, after the build-environment verification)
 - **Deciders:** Principal Architect (A1, A6, A7); CTO (A2, A3, A4, A5, and the two adjacent calls A8, A14)
 - **Affects:** `internal/types/types.go`, `internal/config/config.go`, `internal/pack/pack.go`,
   `pkg/packs/dotnet/dotnetpack.go`, `pkg/packs/webserver/webserverpack.go`,
   `pkg/templates/templates/**` (23 files), `samples/**/nimpack.yaml` (27 files),
   `docs/spec/nimpack-v1.md` (unwritten), `docs/spec/nimpack.schema.json` (unwritten)
-- **Informed by:** the review build-environment verification (apko v1.4.12, melange v0.63.1)
+- **Informed by:** a build-environment verification against apko v1.4.12 and melange v0.63.1
 - **Supersedes nothing. Gates:** the normative v1 spec text (workstream 2 of `docs/spec/SCOPE.md` §5)
 
 ---
@@ -154,10 +154,10 @@ Implement it because an enterprise-trustworthy 1.0 that cannot set
 `org.opencontainers.image.source`, `.revision`, `.licenses` or `.created` has a real
 supply-chain attribution gap. Those annotations are how a consumer traces an image back
 to its source, and they are exactly what the Chainguard / distroless / Docker Hardened
-Images comparison set already emit. The conformance target named by direct measurement
-(`Nimbostack/blockstax-containers`) sets **9 to 11** OCI annotations on each of its four
-images; without A3, that target can never be expressed in `nimpack.yaml`, which is a
-sharper argument than the general one and is why this is the one `Implement` left standing.
+Images comparison set already emit. The downstream consumer project surveyed for this
+decision sets **9 to 11** OCI annotations on each of its four images; without A3, that
+workload can never be expressed in `nimpack.yaml`, which is a sharper argument than the
+general one and is why this is the one `Implement` left standing.
 
 Normative shape: keys MUST be emitted in sorted order so the digest does not depend on Go
 map iteration order — the reproducibility lens applies here directly, and a `map` is
@@ -208,8 +208,8 @@ The warning rides the same stderr diagnostic channel A1 introduces for unknown k
 is not a new mechanism, and it is what keeps this from being a silent no-op.
 
 This is the "say plainly that it documents intent and produces no image metadata" the CTO
-asked for after the Blockstax review, with the backend-capability clause added so the
-field is not frozen as permanently inert.
+asked for, with the backend-capability clause added so the field is not frozen as
+permanently inert.
 
 **Strip it from the generators anyway.** 22 templates, 26 samples, `dotnetpack.go:188` and
 `webserverpack.go:133` stop writing it. Nimbopacks must not generate, into a user's config,
@@ -321,10 +321,10 @@ The rename is a type-design fix, not cosmetics: the current name is the reason n
 noticed that `MelangeEnvironment` (`types.go:267`) has only `Contents` and therefore has
 nowhere to put an environment variable even if we wanted to.
 
-*Carried open — A8b.* The the review Blockstax review found the conformance target needs
+*Carried open — A8b.* The same downstream survey found that the consumer project needs
 **real** build-time environment variables (`GOMODCACHE: /var/cache/melange`), which
 `build.options` by construction will not provide. The CTO's A8 ruling explicitly says not
-to turn `build.env` into real melange env; that ruling and the Blockstax requirement are
+to turn `build.env` into real melange env; that ruling and that requirement are
 compatible, because the answer is a *new* field rather than a reinterpreted one:
 
 - add `Environment map[string]string` to `types.MelangeEnvironment`, mirroring melange's
@@ -388,7 +388,7 @@ note, per this ADR's own rule, not as a line item here.
 - The leniency corollary gives reviewers a mechanical rule for the next dead field, which
   there will be.
 - `image.labels` closes a real supply-chain attribution gap rather than papering over it,
- and the review measurement reduced it from "a backend change" to a four-line one.
+ and the measurement reduced it from "a backend change" to a four-line one.
 - `image.ports` forces the spec to grow an explicit **backend-capability gap** concept in
   v1, against a field where getting it wrong costs nothing. Without A4 that concept would
   have arrived for the first time alongside a second backend, under pressure.
@@ -450,12 +450,12 @@ behalf.
 **Delete all seven.** Maximally clean: the schema contains only fields with behaviour, and
 under the leniency corollary nothing breaks. Rejected for `image.labels`, which is an
 attribution requirement for the supply-chain posture this project explicitly targets and
-which the conformance target uses 9–11 times per image. Also rejected for
+which the surveyed consumer project uses 9–11 times per image. Also rejected for
 `build.template`, which is useful provenance.
 
 **Delete `image.ports`, since apko cannot express it.** The strongest remaining
 alternative, and the one the draft of this ADR named as its own fallback — the CTO's rule
-is that a field must either do something or not exist, and after the review we know
+is that a field must either do something or not exist, and the measurement shows
 `image.ports` can do nothing under the shipped backend. Rejected because the premise is
 backwards: `nimpack.yaml` is specified to be backend-agnostic and implementable by others
 (`CLAUDE.md` design goals), so the capability of one adapter is not a reason to amputate
@@ -582,19 +582,19 @@ Two consequences leave this ADR rather than sitting in it:
   rephrasing in terms of the *plan* — `MelangeConfig` + `ApkoConfig` — rather than the
   digest. ADR-0004 or the compatibility-policy doc owns that; it does not change any
   disposition here, because every disposition in this ADR is plan-neutral too.
-- **Environment inputs.** the review also confirms the §3 secondary finding that nothing
+- **Environment inputs.** The same verification confirms the §3 secondary finding that nothing
   passes `--source-date-epoch` through to melange or apko — both inherit it ambiently. The
   v1 reproducibility clause must enumerate the ambient environment as an input, or the
   tool must pass it explicitly. Same issue.
 
 ### Still open after this ADR
 
-| Item | Issue | Owner | Next step |
-|---|---|---|---|
-| **Product claim vs. capability flag** — `CLAUDE.md:7` and `README.md:10` advertise "reproducible" images; `backend.go` now reports `Reproducible: false`. | the review | CTO | Decide what the headline claim becomes, then reconcile both files and the v1 spec's reproducibility clause in one change. |
-| **A8b** — a real `build.environment` channel mapping to melange's `environment.environment`, required by the Blockstax conformance target (`GOMODCACHE`). Additive and non-breaking, but a new public schema field. | the review | CTO to accept; Principal Architect to spec | Own issue + a short ADR note before the freeze. Must land before `schema_version: "1"` is normative or it needs a migration note. |
-| **A9, A10, A11, A13** — `image.run_as` zero value, `layering.strategy` enum, `layering.budget` zero value, `artifacts[].dest` three behaviours. | the review | Principal Architect | **ADR-0004**, together with the `LayeringConfig` / `ApkoConfig` / `MelangeConfig`-in-`internal/types` decoupling the CTO asked be raised separately. |
-| **A14 implementation** — exclude pinned packages from the `--check` threshold, and make a `--fail-on` typo exit `2`. | the review | Engineering | **ADR-0005** plus the code change, carrying the two conditions stated above. |
+| Item | Owner | Next step |
+|---|---|---|
+| **Product claim vs. capability flag** — `CLAUDE.md:7` and `README.md:10` advertise "reproducible" images; `backend.go` now reports `Reproducible: false`. | CTO | Decide what the headline claim becomes, then reconcile both files and the v1 spec's reproducibility clause in one change. |
+| **A8b** — a real `build.environment` channel mapping to melange's `environment.environment` (`GOMODCACHE`). Additive and non-breaking, but a new public schema field. | CTO to accept; Principal Architect to spec | A short ADR note before the freeze. Must land before `schema_version: "1"` is normative or it needs a migration note. |
+| **A9, A10, A11, A13** — `image.run_as` zero value, `layering.strategy` enum, `layering.budget` zero value, `artifacts[].dest` three behaviours. | Principal Architect | **ADR-0004**, together with the `LayeringConfig` / `ApkoConfig` / `MelangeConfig`-in-`internal/types` decoupling the CTO asked be raised separately. |
+| **A14 implementation** — exclude pinned packages from the `--check` threshold, and make a `--fail-on` typo exit `2`. | Engineering | **ADR-0005** plus the code change, carrying the two conditions stated above. |
 
 ---
 
@@ -605,31 +605,28 @@ Two consequences leave this ADR rather than sitting in it:
 | A1 | `schema_version` | Implement — warn-then-error ramp | Principal Architect | 2026-10-23 |
 | A2 | `build.context` | Delete | CTO | 2026-10-23 |
 | A3 | `image.labels` | Implement — apko `annotations:` | CTO | 2026-10-23 |
-| A4 | `image.ports` | Reserve — backend-capability gap; strip from generators | CTO (stated fallback, condition verified by the review) | 2026-10-23 |
+| A4 | `image.ports` | Reserve — backend-capability gap; strip from generators | CTO (stated fallback, condition verified by measurement) | 2026-10-23 |
 | A5 | `update.auto_check` | Delete | CTO | 2026-10-23 |
 | A6 | `update.repositories` | Delete | Principal Architect | 2026-10-23 |
 | A7 | `build.template` | Reserve — informational | Principal Architect | 2026-10-23 |
 | A8 | `build.env` (adjacent) | Rename to `build.options`; alias retained through v1; warn on unknown keys | CTO | 2026-10-23 |
-| A8b | `build.environment` (new) | **Undecided** — carried to its own issue | — | — |
+| A8b | `build.environment` (new) | **Undecided** — carried to its own ADR | — | — |
 | A14 | `update.pinned` (adjacent) | Fix the code: exclude pinned from the `--check` threshold | CTO | 2026-10-23 |
 
-A2, A3, A4, A5, A8 and A14 were decided by the CTO on the record in the review thread on
-2026-10-23, as the six product calls this ADR was explicitly told not to make alone. A4's
-entry is a conditional decision whose condition was resolved by the review on the same day:
-the CTO pre-authorised the fallback, the verification showed apko cannot express exposed
-ports, and the fallback is what is recorded. The item-verdict interaction raised by direct measurement
-(`66ec95dd-1a28-420d-8755-8acd6255c488`) was superseded by that comment and withdrawn.
+A2, A3, A4, A5, A8 and A14 are the six product calls this ADR was explicitly told not to
+make alone; the CTO decided them on 2026-10-23. A4's entry is a conditional decision whose
+condition was resolved the same day: the CTO pre-authorised the fallback, the verification
+showed apko cannot express exposed ports, and the fallback is what is recorded.
 
-The code that implements these dispositions is **the review**, to be landed as four separate
-PRs (deletions, the `image.ports` strip, `image.labels`, the `build.env` rename) before
+The code implementing these dispositions lands as four separate changes — the deletions,
+the `image.ports` strip, `image.labels`, and the `build.env` rename — before
 `schema_version: "1"` goes normative.
 
-Every row of the decision table now carries a name and a date, so the ADR is **Accepted**
-and workstream 2 of `docs/spec/SCOPE.md` §5 — the normative v1 text — is **fully
-unblocked**. The reproducibility clause, the last carve-out, was settled by the review on the
-same day: it is now a clause with a known answer (content-equivalent, not byte-identical)
-rather than an open question.
+Every row of the decision table carries a name and a date, so the ADR is **Accepted** and
+workstream 2 of `docs/spec/SCOPE.md` §5 — the normative v1 text — is **fully unblocked**.
+The reproducibility clause, the last carve-out, was settled the same day: it is now a
+clause with a known answer (content-equivalent, not byte-identical) rather than an open
+question.
 
-This table is the record required by the review bar: a decision that shapes future work
-belongs in an ADR, not only in a comment thread. From here the ADR is immutable — the
-single undecided row (A8b) is resolved by a *new* ADR, not by editing this one.
+From here the ADR is immutable — the single undecided row (A8b) is resolved by a *new*
+ADR, not by editing this one.

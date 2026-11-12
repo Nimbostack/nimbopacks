@@ -7,7 +7,7 @@ the repo root — that is the file reporters read, and it stays there.
 
 | File | Purpose | Status |
 |---|---|---|
-| `threat-model.md` | STRIDE threat model over the attack surfaces | Rev 2 (2026-10-26) — architecture review folded in; CTO risk acceptance pending |
+| `threat-model.md` | STRIDE threat model over the attack surfaces | Rev 2 (2026-10-26) |
 | `vex/` | OpenVEX documents justifying not-affected CVE findings | Not started — blocked on threat-model item CI-7 |
 
 ## Surfaces the threat model must cover

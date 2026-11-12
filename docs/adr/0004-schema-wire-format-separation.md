@@ -18,7 +18,7 @@
 
 ## Context
 
-The CTO raised this in the review ruling of 2026-10-23: `types.LayeringConfig` is
+The CTO's ruling of 2026-10-23 raised this: `types.LayeringConfig` is
 simultaneously the public `nimpack.yaml` schema type (`types.go:133`) and apko's wire format
 (`types.go:294`), and `ApkoConfig`/`MelangeConfig` live in `internal/types` at all. `CLAUDE.md`:
 *"No Wolfi/Chainguard lock-in leaks outside `pkg/backend/wolfi/`."*
@@ -106,7 +106,7 @@ defects**, not a schema ambiguity needing a product call.
 
 ### What was measured for this ADR
 
-Docker is unavailable (`CLAUDE.md`), but — as A direct measurement established — `apko build` does not need
+Docker is unavailable (`CLAUDE.md`), but — as direct measurement established — `apko build` does not need
 it, only `melange build` does. The pinned toolchain is present at
 `~/.nimbopacks/toolchain/bin/` and `packages.wolfi.dev` is reachable, so the four questions this
 ADR would otherwise have deferred were answered directly against **apko v1.4.12** and the pinned
@@ -177,8 +177,8 @@ Three further corrections ride along, because they are the same four lines of co
 2. **Delete the comment at `types.go:136`** — *"matches apko's native layering configuration
    exactly"*. After the split it is false by construction, and it is the sentence that caused
    this.
-3. **Fix `backend.go:67`.** The comment reads `nil = apko default (auto multi-layer)`. the review
-   measured absent-layering as a **single** layer; ADR-0003 records it. PR #29 already corrects
+3. **Fix `backend.go:67`.** The comment reads `nil = apko default (auto multi-layer)`. Absent
+   layering measures as a **single** layer; ADR-0003 records it. PR #29 already corrects
    this line — noted here so the two changes do not collide.
 
 **Digest impact: none for every config that ships today.** The emitted `apko.yaml` bytes are
@@ -216,7 +216,7 @@ ADR-0003 left this open and named ADR-0004 or the compatibility policy as its ow
 here, because every "digest impact" line in this ADR depends on it.
 
 Criterion 7 currently reads: *a change is breaking if, for a fixed source tree, `nimpack.yaml`,
-toolchain version and `SOURCE_DATE_EPOCH`, the resulting image digest changes.* the review
+toolchain version and `SOURCE_DATE_EPOCH`, the resulting image digest changes.* Measurement
 established that nimbopacks' digests are **not** stable build-to-build — `wolfi.go:70` generates a
 fresh RSA signing key per build, and that perturbs layer digests. A criterion phrased on a
 property the tool does not have is unusable.
@@ -336,7 +336,7 @@ measured (M2), and the result changes the reasoning, so the facts come first.
 Four facts fall out, and three of them correct the record:
 
 1. **`types.go:161-163` is right.** Total layers = content layers + 1, the `+1` being the "top"
- metadata layer. ADR-0003's verification table reports the review measuring `budget: 10` → 10
+ metadata layer. ADR-0003's verification table reports `budget: 10` → 10
    layers; that is apko's **log line**, which counts content layers, not the manifest. Both
    observations are correct and they were counting different things. The comment stands; the
    ADR-0003 table row should be read as "10 content layers, 11 total".
