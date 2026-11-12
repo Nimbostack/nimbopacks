@@ -167,13 +167,18 @@ jobs:
               echo ""
               grep -E "Your code is affected by|No vulnerabilities found" /tmp/govulncheck.txt || true
               echo ""
-              echo "<details><summary>Full output</summary>"
+              echo "<details><summary>Last 60 lines — full report in the job log</summary>"
               echo ""
               echo '```'
               tail -60 /tmp/govulncheck.txt
               echo '```'
               echo "</details>"
             } >> "$GITHUB_STEP_SUMMARY"
+            # The summary is capped at 60 lines and govulncheck prints each
+            # finding before its trailing summary, so a long report loses its
+            # earliest findings there. This branch exits before the cat below,
+            # so echo the whole report to the log first or it is lost entirely.
+            cat /tmp/govulncheck.txt
             echo "::warning title=govulncheck::reachable vulnerabilities found — see the job summary. Blocking once the Go toolchain bump lands."
             exit 0
           fi
