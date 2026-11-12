@@ -1,6 +1,9 @@
-# CLAUDE.md
+# Nimbopacks — architecture and conventions
 
-Guidance for Claude Code working on the Nimbopacks codebase.
+Everything a contributor needs before touching this codebase: the shape of the system, the
+rules that are not negotiable, and the traps that have already cost someone a day. The file
+is named `CLAUDE.md` because coding agents pick it up automatically, which makes it the one
+document every contributor and every tool reads; nothing in it depends on a particular tool.
 
 ## What is Nimbopacks
 
