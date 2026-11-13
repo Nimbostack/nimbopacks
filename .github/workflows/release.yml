@@ -24,7 +24,11 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.24'
-          cache: true
+          # No module cache here: this job signs and publishes the release,
+          # so it always builds from a clean module download rather than a
+          # cache that an earlier, differently-triggered run could have
+          # populated.
+          cache: false
 
       - uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
 
