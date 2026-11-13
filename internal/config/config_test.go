@@ -254,6 +254,197 @@ func TestLoad_ReportsUnknownKeys(t *testing.T) {
 	}
 }
 
+// configWith renders a minimal valid config with the given image: block body.
+func configWith(imageBody string) string {
+	return "schema_version: \"1\"\nproject:\n  name: myapp\n  version: 1.0.0\nbuild:\n  pack: golang\nimage:\n" + imageBody
+}
+
+// TestLoad_RunAsZeroIsAcceptedAndWarns covers ADR-0004 A9. The old code made
+// run_as: 0 indistinguishable from an absent field and silently substituted
+// 65532 — a UID the user did not ask for, with no diagnostic. Root stays
+// expressible, because a schema meant to be implemented by others cannot be
+// less expressive than `USER root`; it is the silence that was the defect.
+func TestLoad_RunAsZeroIsAcceptedAndWarns(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "nimpack.yaml", configWith("  run_as: 0\n"))
+
+	cfg, err := Load(dir, "")
+	if err != nil {
+		t.Fatalf("run_as: 0 must load, got: %v", err)
+	}
+	if cfg.Image.RunAs == nil {
+		t.Fatal("run_as: 0 must be representable, got nil")
+	}
+	if *cfg.Image.RunAs != 0 {
+		t.Errorf("run_as: 0 must survive the load, got %d", *cfg.Image.RunAs)
+	}
+	w := runAsWarnings(cfg)
+	if len(w) != 1 {
+		t.Fatalf("run_as: 0 must warn exactly once, got %v", w)
+	}
+	if !strings.Contains(w[0], "root") {
+		t.Errorf("the warning must say the container runs as root, got %q", w[0])
+	}
+}
+
+func TestRunAsWarnings_SilentWhenNotRoot(t *testing.T) {
+	nonRoot := uint32(65532)
+	cases := map[string]*uint32{
+		"absent":   nil,
+		"non-root": &nonRoot,
+	}
+	for name, runAs := range cases {
+		t.Run(name, func(t *testing.T) {
+			cfg := &types.NimpackConfig{}
+			cfg.Image.RunAs = runAs
+			if w := runAsWarnings(cfg); len(w) != 0 {
+				t.Errorf("only run_as: 0 may warn, got %v", w)
+			}
+		})
+	}
+}
+
+// TestLoad_RunAsAbsentStaysAbsent is the counterpart that keeps A9 honest: an
+// absent field must not be materialised into a value, or the three states
+// collapse back into two.
+func TestLoad_RunAsAbsentStaysAbsent(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "nimpack.yaml", configWith("  packages: []\n"))
+
+	cfg, err := Load(dir, "")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Image.RunAs != nil {
+		t.Errorf("an absent run_as must stay nil, got %d", *cfg.Image.RunAs)
+	}
+}
+
+// TestLoad_LayeringValidation covers ADR-0004 A10 and A11: one case per
+// normative sentence. These reject rather than warn because every rejected
+// config already fails — measured against apko v1.4.12 for the strategy case.
+func TestLoad_LayeringValidation(t *testing.T) {
+	cases := []struct {
+		name      string
+		layering  string
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:     "valid",
+			layering: "  layering:\n    strategy: origin\n    budget: 8\n",
+		},
+		{
+			name:     "absent block",
+			layering: "  packages: []\n",
+		},
+		{
+			// ADR-0004 M3 measured the typo "origin", which apko rejects after
+			// package download. Any value outside the enum takes the same
+			// path, and "by-size" is spelt out here because the misspell
+			// linter rewrites a literal typo in a fixture back to "origin".
+			name:      "unknown strategy",
+			layering:  "  layering:\n    strategy: by-size\n    budget: 8\n",
+			wantErr:   true,
+			errSubstr: `"by-size" is not supported; supported: "origin"`,
+		},
+		{
+			name:      "missing strategy",
+			layering:  "  layering:\n    budget: 8\n",
+			wantErr:   true,
+			errSubstr: "strategy is required",
+		},
+		{
+			name:      "missing budget",
+			layering:  "  layering:\n    strategy: origin\n",
+			wantErr:   true,
+			errSubstr: "budget is required",
+		},
+		{
+			name:      "zero budget",
+			layering:  "  layering:\n    strategy: origin\n    budget: 0\n",
+			wantErr:   true,
+			errSubstr: "at least 1",
+		},
+		{
+			name:      "negative budget",
+			layering:  "  layering:\n    strategy: origin\n    budget: -1\n",
+			wantErr:   true,
+			errSubstr: "at least 1",
+		},
+		{
+			name:     "budget at the runtime cap",
+			layering: "  layering:\n    strategy: origin\n    budget: 126\n",
+		},
+		{
+			name:      "budget above the runtime cap",
+			layering:  "  layering:\n    strategy: origin\n    budget: 127\n",
+			wantErr:   true,
+			errSubstr: "at most 126",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "nimpack.yaml", configWith(tc.layering))
+
+			cfg, err := Load(dir, "")
+			if !tc.wantErr {
+				if err != nil {
+					t.Fatalf("must load, got: %v", err)
+				}
+				if vErr := Validate(cfg); vErr != nil {
+					t.Fatalf("must validate, got: %v", vErr)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("must be a load error, got nil")
+			}
+			if !strings.Contains(err.Error(), tc.errSubstr) {
+				t.Errorf("error must contain %q, got %q", tc.errSubstr, err.Error())
+			}
+		})
+	}
+}
+
+// TestValidate_RejectsLayeringToo keeps the two entry points in step: a config
+// built in Go rather than read from disk gets the same answer.
+func TestValidate_RejectsLayeringToo(t *testing.T) {
+	cfg := &types.NimpackConfig{}
+	cfg.Project.Name = "myapp"
+	cfg.Project.Version = "1.0.0"
+	cfg.Build.Pack = "golang"
+	cfg.Image.Layering = &types.LayeringConfig{Strategy: types.LayeringStrategyOrigin}
+
+	if err := Validate(cfg); err == nil {
+		t.Error("Validate must reject a layering block with no budget")
+	}
+}
+
+// TestLoad_LayeringBudgetRoundTrip pins the one shipped config that sets
+// layering: the budget reaches the plan as the number the user wrote, which is
+// what makes ADR-0004's "no digest movement" claim true for samples/showcase.
+func TestLoad_LayeringBudgetRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "nimpack.yaml", configWith("  layering:\n    strategy: origin\n    budget: 8\n"))
+
+	cfg, err := Load(dir, "")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Image.Layering == nil || cfg.Image.Layering.Budget == nil {
+		t.Fatal("layering and budget must both survive the load")
+	}
+	if got := *cfg.Image.Layering.Budget; got != 8 {
+		t.Errorf("budget = %d, want 8", got)
+	}
+	if got := cfg.Image.Layering.Strategy; got != types.LayeringStrategyOrigin {
+		t.Errorf("strategy = %q, want %q", got, types.LayeringStrategyOrigin)
+	}
+}
+
 func TestLoad_NoWarningsForAValidConfig(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "nimpack.yaml", "schema_version: \"1\"\nproject:\n  name: myapp\n  version: 1.0.0\nbuild:\n  pack: golang\n  options:\n    GOFLAGS: -mod=mod\nimage:\n  labels:\n    org.opencontainers.image.source: https://example.invalid/app\n")

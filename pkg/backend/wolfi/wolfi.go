@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -178,7 +179,13 @@ func (b *Backend) AssembleImage(ctx context.Context, plan *types.BuildPlan, buil
 	// Pass through layering config from nimpack.yaml into the apko config.
 	if opts.Layering != nil {
 		apkoCfg.Layering = opts.Layering
-		fmt.Printf("  → Layering: strategy=%s, budget=%d\n", opts.Layering.Strategy, opts.Layering.Budget)
+		// Budget is non-nil for any config that passed config.Validate; the
+		// guard keeps a hand-built ImageOpts from printing a pointer address.
+		budget := "unset"
+		if opts.Layering.Budget != nil {
+			budget = strconv.Itoa(*opts.Layering.Budget)
+		}
+		fmt.Printf("  → Layering: strategy=%s, budget=%s\n", opts.Layering.Strategy, budget)
 	}
 
 	// Re-write apko.yaml with layering config included.
