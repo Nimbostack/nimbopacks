@@ -3,7 +3,7 @@
 Static files served by nginx using a **project-supplied `nginx.conf`** instead
 of the generated default.
 
-Set `build.env.NGINX_CONF_PATH` to your config's path and nimbopacks copies it
+Set `build.options.NGINX_CONF_PATH` to your config's path and nimbopacks copies it
 to `/etc/nginx/nimbopacks.conf` (the nginx package already owns
 `/etc/nginx/nginx.conf`). The image runs `nginx -c /etc/nginx/nimbopacks.conf`.
 

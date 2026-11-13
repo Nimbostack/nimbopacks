@@ -24,8 +24,3 @@ image:
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "false"
     ASPNETCORE_URLS: "http://+:8080"
   run_as: 65532
-  ports:
-    - "8080"
-
-update:
-  auto_check: true

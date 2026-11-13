@@ -26,6 +26,3 @@ image:
   layering:
     strategy: origin
     budget: 10
-
-update:
-  auto_check: true

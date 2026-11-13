@@ -12,7 +12,7 @@ project:
 build:
   pack: golang
   template: go-grpc
-  env:
+  options:
     CGO_ENABLED: "0"
     GOFLAGS: "-trimpath"
 
@@ -24,8 +24,3 @@ image:
     # Add your runtime env vars here
     # GRPC_GO_LOG_VERBOSITY_LEVEL: "99"
   run_as: 65532
-  ports:
-    - "50051"
-
-update:
-  auto_check: true

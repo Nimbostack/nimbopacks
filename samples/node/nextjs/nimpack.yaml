@@ -31,8 +31,3 @@ image:
     PORT: "3000"
     HOSTNAME: "0.0.0.0"
   run_as: 65532
-  ports:
-    - "3000"
-
-update:
-  auto_check: true

@@ -90,12 +90,16 @@ type BuildConfig struct {
 	// Dependencies are extra APK packages needed at build time.
 	Dependencies []string `yaml:"dependencies,omitempty" json:"dependencies,omitempty"`
 
-	// Env sets environment variables during the build.
-	Env map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
+	// Options carries per-pack build keywords read by the pack's Plan step —
+	// not real environment variables. Keys are pack-specific, e.g. ENTRYPOINT
+	// (go), JAR_DIR (java), OUTPUT_DIR / NGINX_CONF_PATH (webserver).
+	Options map[string]string `yaml:"options,omitempty" json:"options,omitempty"`
 
-	// Context is the build context path relative to the project root.
-	// Defaults to "." — useful for monorepos where the app is in a subdirectory.
-	Context string `yaml:"context,omitempty" json:"context,omitempty"`
+	// Env is a deprecated alias for Options, accepted for v1 backward
+	// compatibility. config.Load merges it into Options.
+	//
+	// Deprecated: use Options instead.
+	Env map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
 }
 
 type ImageConfig struct {
@@ -192,13 +196,13 @@ type Artifact struct {
 
 // UpdateConfig controls the CVE patching workflow.
 type UpdateConfig struct {
-	// AutoCheck runs `nimbopacks update --check` in CI (default: true).
-	AutoCheck bool `yaml:"auto_check" json:"auto_check"`
-
-	// Repositories are additional Wolfi repos to check for updates.
-	Repositories []string `yaml:"repositories,omitempty" json:"repositories,omitempty"`
-
-	// Pinned packages won't be updated automatically.
+	// Pinned records that a package is deliberately held at a known version.
+	// Entries are "name" (every version) or "name=version" (that version only).
+	//
+	// This is a reporting marker, not a waiver: a pinned package is flagged
+	// [PINNED] in every output format and still counts toward the --fail-on
+	// threshold, so it can still fail `update --check`. Suppressing a CVE is
+	// grype's job, through .grype.yaml. See ADR-0005, decision 1.
 	Pinned []string `yaml:"pinned,omitempty" json:"pinned,omitempty"`
 
 	// GrypeConfig is the path to a grype policy file (.grype.yaml).
@@ -292,6 +296,10 @@ type ApkoConfig struct {
 	Accounts    ApkoAccounts      `yaml:"accounts"`
 	Environment map[string]string `yaml:"environment,omitempty"`
 	Layering    *LayeringConfig   `yaml:"layering,omitempty"`
+
+	// Annotations are OCI annotations, sourced from image.labels. apko applies
+	// them both at the manifest/index level and as image-config labels.
+	Annotations map[string]string `yaml:"annotations,omitempty"`
 }
 
 type ApkoContents struct {

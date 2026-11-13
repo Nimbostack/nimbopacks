@@ -31,8 +31,3 @@ image:
     PYTHONPATH: /app
     DJANGO_SETTINGS_MODULE: config.settings.production
   run_as: 65532
-  ports:
-    - "8000"
-
-update:
-  auto_check: true

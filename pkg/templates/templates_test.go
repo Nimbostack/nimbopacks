@@ -1,6 +1,7 @@
 package templates
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -161,5 +162,29 @@ func TestRender_JavaGradle(t *testing.T) {
 	}
 	if !strings.Contains(content, "gradlew") {
 		t.Error("expected gradlew build command")
+	}
+}
+
+// forbiddenKeys are nimpack.yaml fields that ADR-0003 (A4) says generators
+// must not write. image.ports is Reserved, not deleted — the wolfi backend
+// cannot express it, and a key nimbopacks pre-fills reads as a promise it
+// doesn't keep.
+var forbiddenKeys = []*regexp.Regexp{
+	regexp.MustCompile(`(?m)^\s*ports:`),
+}
+
+// TestTemplates_NoForbiddenKeys is the generator guard required by
+// ADR-0003 §Verification item 4: no template may emit image.ports.
+func TestTemplates_NoForbiddenKeys(t *testing.T) {
+	for _, tmpl := range List() {
+		content, err := Render(tmpl.Name, TemplateVars{ProjectName: "x", Version: "1.0.0"})
+		if err != nil {
+			t.Fatalf("rendering template %q: %v", tmpl.Name, err)
+		}
+		for _, re := range forbiddenKeys {
+			if re.MatchString(content) {
+				t.Errorf("template %q writes forbidden key matching %s", tmpl.Name, re)
+			}
+		}
 	}
 }

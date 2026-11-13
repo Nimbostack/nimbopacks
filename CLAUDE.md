@@ -1,14 +1,28 @@
-# CLAUDE.md
+# Nimbopacks — architecture and conventions
 
-Guidance for Claude Code working on the Nimbopacks codebase.
+Everything a contributor needs before touching this codebase: the shape of the system, the
+rules that are not negotiable, and the traps that have already cost someone a day. The file
+is named `CLAUDE.md` because coding agents pick it up automatically, which makes it the one
+document every contributor and every tool reads; nothing in it depends on a particular tool.
 
 ## What is Nimbopacks
 
-Nimbopacks builds minimal, reproducible OCI images from source using **melange**
-(APK package builder) and **apko** (image assembler) from the Wolfi/Chainguard
-ecosystem. It provides automatic SBOMs, grype-based CVE scanning, and a
-config-first workflow where `nimpack.yaml` is the single source of truth.
-Detection generates config; it never drives builds directly.
+Nimbopacks builds minimal OCI images from source using **melange** (APK package
+builder) and **apko** (image assembler) from the Wolfi/Chainguard ecosystem. Every
+image gets an SBOM and is scanned for CVEs with grype. The workflow is config-first:
+`nimpack.yaml` is the single source of truth, and detection generates that config —
+it never drives builds directly.
+
+Builds are **not** byte-for-byte reproducible today, and the code says so:
+`backend.Capabilities.Reproducible` is `false` for the wolfi backend. melange signs
+each build with a freshly generated key, the signature size reaches the image through
+`/lib/apk/db/installed`, and the digest moves between two otherwise identical builds.
+Keeping the ephemeral key is a deliberate trade — long-lived signing material on a
+build host is the worse exposure. See
+[ADR-0003](docs/adr/0003-dead-field-disposition.md) for the measurement and the
+reasoning. The rest of the constraint still binds, and reviewers hold changes to it:
+nothing may put wall-clock time, network response order, Go map iteration order, or
+the build hostname into a build's output.
 
 ## Project Structure
 

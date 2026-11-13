@@ -80,7 +80,7 @@ func (p *Pack) GenerateConfig(_ context.Context, _ string, detected *types.Detec
 	}
 
 	cfg := pack.BaseConfig(name, "0.0.1", p.Name(), templateName)
-	cfg.Build.Env = map[string]string{
+	cfg.Build.Options = map[string]string{
 		"CGO_ENABLED": "0",
 		"GOFLAGS":     "-trimpath",
 	}
@@ -88,7 +88,7 @@ func (p *Pack) GenerateConfig(_ context.Context, _ string, detected *types.Detec
 	cfg.Image.Packages = []string{"ca-certificates-bundle"}
 
 	if ep, ok := meta["entrypoint"]; ok {
-		cfg.Build.Env["ENTRYPOINT"] = ep
+		cfg.Build.Options["ENTRYPOINT"] = ep
 	}
 
 	return &cfg, nil
@@ -106,7 +106,7 @@ func (p *Pack) Plan(_ context.Context, srcDir string, cfg *types.NimpackConfig) 
 	// Determine build target.
 	// Prefer explicit ENTRYPOINT from config; fall back to scanning the source.
 	target := "."
-	if ep, ok := cfg.Build.Env["ENTRYPOINT"]; ok && ep != "" {
+	if ep, ok := cfg.Build.Options["ENTRYPOINT"]; ok && ep != "" {
 		target = ep
 	} else if ep := findEntrypoint(srcDir); ep != "" {
 		target = ep

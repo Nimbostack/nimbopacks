@@ -16,7 +16,7 @@ build:
   # If you need a build step, add:
   # command: "npm ci && npm run build"
   # dependencies: [nodejs-20, npm, build-base]
-  env:
+  options:
     OUTPUT_DIR: "."  # Directory containing index.html
 
 image:
@@ -26,13 +26,8 @@ image:
     - nginx
     - ca-certificates-bundle
   run_as: 65532
-  ports:
-    - "8080"
 
 # To use a custom nginx.conf, place it in your project root
 # or set NGINX_CONF_PATH in build.env:
 #   env:
 #     NGINX_CONF_PATH: config/nginx.conf
-
-update:
-  auto_check: true

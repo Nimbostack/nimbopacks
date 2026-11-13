@@ -6,7 +6,7 @@ project:
 
 build:
   pack: web
-  env:
+  options:
     # Serve the static files from public/ ...
     OUTPUT_DIR: public
     # ... and use this project's own nginx.conf instead of the generated
@@ -20,8 +20,3 @@ image:
     - nginx
     - ca-certificates-bundle
   run_as: 65532
-  ports:
-    - "8080"
-
-update:
-  auto_check: true
