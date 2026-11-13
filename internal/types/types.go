@@ -115,8 +115,18 @@ type ImageConfig struct {
 	// Env are environment variables baked into the image.
 	Env map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
 
-	// RunAs is the UID for the non-root user (default: 65532).
-	RunAs uint32 `yaml:"run_as,omitempty" json:"run_as,omitempty"`
+	// RunAs is the UID the image's main process runs as.
+	//
+	// Three states, all representable (ADR-0004 A9):
+	//   nil — the field is absent and the 65532 default applies.
+	//   0   — the container runs as root. Valid, and warned about at load.
+	//   N   — the container runs as UID N.
+	//
+	// It is a pointer because 0 is a meaningful value: a plain uint32 cannot
+	// tell "the user asked for root" from "the user said nothing", and the
+	// old code resolved that ambiguity by silently substituting 65532 for a
+	// UID the user had explicitly requested.
+	RunAs *uint32 `yaml:"run_as,omitempty" json:"run_as,omitempty"`
 
 	// Labels are OCI annotations.
 	Labels map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
@@ -156,11 +166,10 @@ type ImageConfig struct {
 //
 // Reference: https://github.com/chainguard-dev/apko/blob/main/docs/layering.md
 type LayeringConfig struct {
-	// Strategy is the layering algorithm. Currently only "origin" is supported.
-	// "origin" groups packages by their build origin — packages from the same
-	// upstream source (e.g., gcc, openssl) land in the same layer because
-	// they change together.
-	Strategy string `yaml:"strategy" json:"strategy"`
+	// Strategy is the layering algorithm. It is a closed enum with one member
+	// in schema version "1": LayeringStrategyOrigin. Validated at load; an
+	// unrecognized value is a load error (ADR-0004 A10).
+	Strategy LayeringStrategy `yaml:"strategy" json:"strategy"`
 
 	// Budget is the number of additional layers apko will create.
 	// The total layer count will be budget + 1 (the +1 is the "top" layer
@@ -175,8 +184,45 @@ type LayeringConfig struct {
 	// consumers will add their own layers on top.
 	//
 	// Container runtimes cap at 127 layers total, so leave headroom.
-	Budget int `yaml:"budget" json:"budget"`
+	//
+	// REQUIRED whenever the layering block is present, and MUST be between
+	// MinLayeringBudget and MaxLayeringBudget inclusive (ADR-0004 A11). It is
+	// a pointer so that an absent budget stays distinguishable from budget: 0
+	// — both are load errors, and conflating them would hide one of them.
+	// To request a single-layer image, omit the layering block entirely:
+	// budget: 0 is not that image, it is the same two-layer image as
+	// budget: 1.
+	Budget *int `yaml:"budget" json:"budget"`
 }
+
+// LayeringStrategy names the algorithm used to group packages into layers.
+//
+// The enum is nimbopacks', not apko's: a strategy is defined by what it means
+// for the resulting image, and a backend that cannot implement a requested
+// strategy must reject it rather than silently fall back (ADR-0004 A10).
+type LayeringStrategy string
+
+// LayeringStrategyOrigin groups packages by the upstream source that produced
+// them, so packages that change together share a layer. It is the only
+// strategy defined by schema version "1".
+const LayeringStrategyOrigin LayeringStrategy = "origin"
+
+// LayeringStrategies lists every strategy this schema version defines, in the
+// order a diagnostic should present them.
+var LayeringStrategies = []LayeringStrategy{LayeringStrategyOrigin}
+
+const (
+	// MinLayeringBudget is the smallest budget that means anything: a budget
+	// of 0 and a budget of 1 produce the same two-layer image, so 1 is the
+	// only spelling of that state (ADR-0004 A11).
+	MinLayeringBudget = 1
+
+	// MaxLayeringBudget is the largest budget that yields a pullable image.
+	// Container runtimes cap at 127 layers total and the total is the budget
+	// plus one metadata layer, so a budget above 126 asks for an image no
+	// runtime will accept.
+	MaxLayeringBudget = 126
+)
 
 // Artifact defines one build output in a monorepo.
 // Each artifact can target a different subdirectory and produce a different binary.

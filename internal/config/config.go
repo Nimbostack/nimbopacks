@@ -8,6 +8,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -63,7 +64,66 @@ func Validate(cfg *types.NimpackConfig) error {
 	if cfg.Build.Pack == "" {
 		return errors.New("build.pack is required")
 	}
+	return validateLayering(cfg.Image.Layering)
+}
+
+// validateLayering enforces ADR-0004 A10 and A11 on the image.layering block.
+//
+// These reject rather than warn, which is the one place this loader departs
+// from the warn-then-error ramp ADR-0003 A1 set for schema_version. A1's ramp
+// exists so that no config which builds today stops building, and every config
+// rejected here already fails: apko exits 1 on an unrecognized strategy, and a
+// budget outside [1, 126] either duplicates a state that has its own spelling
+// or asks for an image no runtime will pull. Validating at load moves an
+// existing failure earlier and names the legal values while doing it.
+func validateLayering(l *types.LayeringConfig) error {
+	if l == nil {
+		return nil
+	}
+	if l.Strategy != types.LayeringStrategyOrigin {
+		if l.Strategy == "" {
+			return fmt.Errorf("image.layering.strategy is required when image.layering is set; supported: %s",
+				strategyList())
+		}
+		return fmt.Errorf("image.layering.strategy %q is not supported; supported: %s",
+			string(l.Strategy), strategyList())
+	}
+	if l.Budget == nil {
+		return fmt.Errorf("image.layering.budget is required when image.layering is set, and must be between %d and %d; omit image.layering entirely for a single-layer image",
+			types.MinLayeringBudget, types.MaxLayeringBudget)
+	}
+	if *l.Budget < types.MinLayeringBudget {
+		return fmt.Errorf("image.layering.budget is %d; it must be at least %d (budget: 0 builds the same two-layer image as budget: 1, and omitting image.layering entirely is how to ask for a single layer)",
+			*l.Budget, types.MinLayeringBudget)
+	}
+	if *l.Budget > types.MaxLayeringBudget {
+		return fmt.Errorf("image.layering.budget is %d; it must be at most %d, because the total layer count is the budget plus one metadata layer and container runtimes cap at 127 layers",
+			*l.Budget, types.MaxLayeringBudget)
+	}
 	return nil
+}
+
+func strategyList() string {
+	names := make([]string, 0, len(types.LayeringStrategies))
+	for _, s := range types.LayeringStrategies {
+		names = append(names, strconv.Quote(string(s)))
+	}
+	return strings.Join(names, ", ")
+}
+
+// runAsWarnings reports the stderr diagnostic ADR-0004 A9 requires when a
+// config asks for UID 0. Root stays expressible — a schema meant to be
+// implemented by others should not be less expressive than a Dockerfile's
+// USER root — but it is never silent.
+func runAsWarnings(cfg *types.NimpackConfig) []string {
+	if cfg.Image.RunAs == nil || *cfg.Image.RunAs != 0 {
+		return nil
+	}
+	name := cfg.Project.Name
+	if name == "" {
+		name = "this project"
+	}
+	return []string{fmt.Sprintf("image.run_as is 0: the container built from %s will run as root", name)}
 }
 
 // checkSchemaVersion reports whether the config states a schema version this release
@@ -116,8 +176,15 @@ func Load(srcDir, path string) (*types.NimpackConfig, error) {
 	}
 	warnings := append(checkSchemaVersion(&cfg), strictWarnings(data)...)
 	warnings = append(warnings, resolveBuildOptions(&cfg)...)
+	warnings = append(warnings, runAsWarnings(&cfg)...)
 	for _, w := range warnings {
 		fmt.Fprintf(os.Stderr, "warning: %s\n", w)
+	}
+	// Layering is rejected here rather than warned about, and it is the only
+	// thing Load refuses: see validateLayering. Validate applies the same rule
+	// for callers that construct a config without going through the loader.
+	if err := validateLayering(cfg.Image.Layering); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return &cfg, nil
 }
