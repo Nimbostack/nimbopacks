@@ -43,7 +43,12 @@ jobs:
   oci-image:
     name: OCI Image
     needs: goreleaser
-    runs-on: ubuntu-latest
+    # Pinned to 22.04 deliberately. chainguard-dev/actions/setup-melange still
+    # installs `qemu-user-static`, which Ubuntu 24.04 replaced with
+    # `qemu-user-binfmt`; on ubuntu-latest the step dies with "Package
+    # 'qemu-user-static' has no installation candidate" before melange is ever
+    # used. 22.04 has the package. Revisit when the action is updated.
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       packages: write
