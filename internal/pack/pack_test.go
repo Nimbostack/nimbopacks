@@ -92,3 +92,49 @@ func TestApplyConfig_PortsIgnored(t *testing.T) {
 		t.Errorf("ApkoConfig differs based on image.ports:\nwithout: %+v\nwith:    %+v", planWithout.Apko, planWith.Apko)
 	}
 }
+
+// TestApplyConfig_RunAs is ADR-0004 §Verification item 3: the three states of
+// image.run_as reach the apko config as three distinct run-as values. The
+// `0` row is the one that failed before A9 — it rendered 65532, the UID the
+// user had explicitly declined.
+func TestApplyConfig_RunAs(t *testing.T) {
+	ptr := func(u uint32) *uint32 { return &u }
+
+	cases := []struct {
+		name  string
+		runAs *uint32
+		want  string
+	}{
+		{name: "absent uses the non-root default", runAs: nil, want: "65532"},
+		{name: "zero means root", runAs: ptr(0), want: "0"},
+		{name: "an explicit uid", runAs: ptr(1000), want: "1000"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &types.NimpackConfig{
+				Project: types.ProjectMeta{Name: "app", Version: "1.0.0"},
+				Image:   types.ImageConfig{RunAs: tc.runAs},
+			}
+			plan := &types.BuildPlan{Apko: pack.NewApkoConfig("app", "", nil)}
+			pack.ApplyConfig(plan, cfg)
+
+			if got := plan.Apko.Accounts.RunAs; got != tc.want {
+				t.Errorf("apko accounts.run-as: got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestBaseConfig_ScaffoldsNonRoot guards the generator side of A9: a config
+// nimbopacks writes must still ask for the non-root UID explicitly, not leave
+// the field absent and rely on a default elsewhere.
+func TestBaseConfig_ScaffoldsNonRoot(t *testing.T) {
+	cfg := pack.BaseConfig("app", "1.0.0", "golang", "go")
+	if cfg.Image.RunAs == nil {
+		t.Fatal("generated configs must set run_as")
+	}
+	if got := *cfg.Image.RunAs; got != pack.DefaultRunAs {
+		t.Errorf("run_as: got %d, want %d", got, pack.DefaultRunAs)
+	}
+}

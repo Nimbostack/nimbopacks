@@ -174,8 +174,10 @@ func ApplyConfig(plan *types.BuildPlan, cfg *types.NimpackConfig) {
 			append(plan.Apko.Contents.Packages, cfg.Image.Packages...),
 		)
 	}
-	if cfg.Image.RunAs != 0 {
-		plan.Apko.Accounts.RunAs = fmt.Sprintf("%d", cfg.Image.RunAs)
+	// Guarding on nil rather than on 0: run_as: 0 is a request for root, not
+	// an absent field (ADR-0004 A9). The 65532 default stays in NewApkoConfig.
+	if cfg.Image.RunAs != nil {
+		plan.Apko.Accounts.RunAs = fmt.Sprintf("%d", *cfg.Image.RunAs)
 	}
 	maps.Copy(plan.Apko.Environment, cfg.Image.Env)
 	if len(cfg.Image.Labels) > 0 {
@@ -216,8 +218,13 @@ func Dedupe(items []string) []string {
 	return out
 }
 
+// DefaultRunAs is the UID generated configs run as — the non-root UID the
+// apko account scaffold in NewApkoConfig creates.
+const DefaultRunAs uint32 = 65532
+
 // BaseConfig returns a minimal nimpack.yaml skeleton.
 func BaseConfig(name, version, packName, templateName string) types.NimpackConfig {
+	runAs := DefaultRunAs
 	return types.NimpackConfig{
 		SchemaVersion: "1",
 		Project: types.ProjectMeta{
@@ -229,7 +236,7 @@ func BaseConfig(name, version, packName, templateName string) types.NimpackConfi
 			Template: templateName,
 		},
 		Image: types.ImageConfig{
-			RunAs: 65532,
+			RunAs: &runAs,
 			Env:   make(map[string]string),
 		},
 	}
