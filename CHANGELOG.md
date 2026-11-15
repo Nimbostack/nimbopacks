@@ -3,6 +3,16 @@
 Notable changes, newest first. This project follows [semantic versioning](https://semver.org/);
 while the major version is 0, a change to the configuration surface is a minor bump.
 
+## 0.2.1 — 2026-11-15
+
+### Fixed
+
+- The container image publishes again. The release job failed while setting up melange, before any
+  image work started: the setup action installs `qemu-user-static`, which Ubuntu 24.04 replaced with
+  `qemu-user-binfmt`, so the step died with "no installation candidate". The job now runs on 22.04,
+  which still has that package. Binaries, SBOMs and checksums were unaffected in 0.2.0; only the OCI
+  image was missing.
+
 ## 0.2.0 — 2026-11-15
 
 ### Upgrading from 0.1.0
