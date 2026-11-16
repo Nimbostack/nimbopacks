@@ -5,15 +5,14 @@ on:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
+    # No free-text tag input on purpose: an operator-supplied value could publish
+    # a branch build to `latest` or over a release tag. Manual runs always use a
+    # run-scoped ci-test tag and never touch the release namespace.
     inputs:
       push:
         description: 'Push the image to GHCR (uncheck to build-only)'
         type: boolean
         default: false
-      tag:
-        description: 'Tag to build the image for (defaults to latest commit on this branch)'
-        type: string
-        default: ''
 
 # Minimal read-only default; jobs elevate only what they need.
 permissions:
@@ -68,10 +67,15 @@ jobs:
     env:
       MELANGE_VERSION: '0.64.1'
       APKO_VERSION: '1.5.0'
-      # On a real tag push this is the tag (e.g. v0.2.2). On workflow_dispatch
-      # it's an operator-supplied value, defaulting to a run-scoped test tag
-      # so manual verification runs never collide with or resemble a release.
-      IMAGE_TAG: ${{ github.event_name == 'push' && github.ref_name || (inputs.tag != '' && inputs.tag || format('ci-test-{0}', github.run_id)) }}
+      # Digests of the exact linux_amd64 tarballs this job downloads, verified
+      # before anything is installed. Both were checked against the published
+      # release assets; a swapped archive fails the step instead of running in
+      # the job that holds `packages: write`.
+      MELANGE_SHA256: '0581280c7a3b0137d37ebc9fd20768da76c5201f991a21717b7d4972100ab149'
+      APKO_SHA256: '611cd21aad41dbef2a2698087ebfbb308ba6b0f171797e5571033fb6622ba708'
+      # On a real tag push this is the tag (e.g. v0.2.2). A manual run is always
+      # a run-scoped test tag, so it can never collide with or resemble a release.
+      IMAGE_TAG: ${{ github.event_name == 'push' && github.ref_name || format('ci-test-{0}', github.run_id) }}
       DO_PUSH: ${{ github.event_name == 'push' || inputs.push == true }}
 
     steps:
@@ -104,11 +108,13 @@ jobs:
           set -euo pipefail
           curl -fsSL -o melange.tar.gz \
             "https://github.com/chainguard-dev/melange/releases/download/v${MELANGE_VERSION}/melange_${MELANGE_VERSION}_linux_amd64.tar.gz"
+          echo "${MELANGE_SHA256}  melange.tar.gz" | sha256sum -c -
           tar -xzf melange.tar.gz "melange_${MELANGE_VERSION}_linux_amd64/melange"
           sudo install -m 0755 "melange_${MELANGE_VERSION}_linux_amd64/melange" /usr/local/bin/melange
 
           curl -fsSL -o apko.tar.gz \
             "https://github.com/chainguard-dev/apko/releases/download/v${APKO_VERSION}/apko_${APKO_VERSION}_linux_amd64.tar.gz"
+          echo "${APKO_SHA256}  apko.tar.gz" | sha256sum -c -
           tar -xzf apko.tar.gz "apko_${APKO_VERSION}_linux_amd64/apko"
           sudo install -m 0755 "apko_${APKO_VERSION}_linux_amd64/apko" /usr/local/bin/apko
 
@@ -129,12 +135,25 @@ jobs:
       - name: Set package version
         run: |
           set -euo pipefail
-          if [[ "${IMAGE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            version="${IMAGE_TAG#v}"
-          else
+          if [[ "${GITHUB_EVENT_NAME}" != "push" ]]; then
+            # Dry run against a branch: nothing is published under a release
+            # tag, and apk rejects a raw commit suffix, so use a placeholder.
             version="0.0.0"
+          else
+            raw="${IMAGE_TAG#v}"
+            if [[ "$raw" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              version="$raw"
+            elif [[ "$raw" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-(rc|beta)\.([0-9]+)$ ]]; then
+              # apk spells prereleases with an underscore suffix: 0.2.3_rc1
+              version="${BASH_REMATCH[1]}_${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+            else
+              echo "::error::cannot derive an APK version from tag '${IMAGE_TAG}'."
+              echo "::error::Expected vX.Y.Z or vX.Y.Z-rc.N; refusing to publish an image labelled 0.0.0."
+              exit 1
+            fi
           fi
           sed -i "s/^  version: .*/  version: ${version}/" melange.yaml
+          echo "APK version: ${version}"
 
       # Build the nimbopacks APK for both architectures.
       - name: Build APK with melange
