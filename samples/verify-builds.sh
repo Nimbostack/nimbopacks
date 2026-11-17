@@ -74,6 +74,22 @@ container="nimbopacks-verify"
 cleanup() { docker rm -f "$container" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
+# dump_container_evidence <dir> — print exit status and recent logs for the
+# verify container. Run this before cleanup(): with --rm on `docker run`, a
+# container that already exited is removed the instant it exits, and a
+# `docker logs`/`docker inspect` issued after that point fails with "No such
+# container", throwing away the one thing that explains the failure. So
+# `docker run` below is started WITHOUT --rm — cleanup() is solely
+# responsible for removing it, after this function has had a chance to read
+# its state.
+dump_container_evidence() {
+  local dir="$1"
+  local state; state="$(docker inspect -f '{{.State.Status}} exit={{.State.ExitCode}} oomkilled={{.State.OOMKilled}}' "$container" 2>&1)"
+  echo "      container state: ${state}"
+  echo "      container logs ($dir):"
+  docker logs "$container" 2>&1 | tail -20 | sed 's/^/      /'
+}
+
 # Warm-up seconds before probing — JVM and Blazor need longer to boot.
 warmup_for() {
   case "$1" in
@@ -108,16 +124,16 @@ verify_one() {
 
   # Worker (no HTTP): start, then assert the log pattern appears.
   if [[ "$ptype" == "log" ]]; then
-    docker run -d --rm --name "$container" "$image" >/dev/null 2>&1
+    docker run -d --name "$container" "$image" >/dev/null 2>&1
     sleep "$(warmup_for "$dir")"
     if docker logs "$container" 2>&1 | grep -qE "$arg"; then
       echo "PASS  $dir (worker log matched /$arg/)"; cleanup; return 0
     fi
     echo "FAIL  $dir (worker log did not match /$arg/)"
-    docker logs "$container" 2>&1 | tail -3 | sed 's/^/      /'; cleanup; return 1
+    dump_container_evidence "$dir"; cleanup; return 1
   fi
 
-  docker run -d --rm -p "$host_port:$cport" --name "$container" "$image" >/dev/null 2>&1
+  docker run -d -p "$host_port:$cport" --name "$container" "$image" >/dev/null 2>&1
   sleep "$(warmup_for "$dir")"
 
   # gRPC over HTTP/2 cleartext: a live gRPC server replies over HTTP/2 (it
@@ -129,7 +145,7 @@ verify_one() {
       echo "PASS  $dir (gRPC h2c — HTTP/2, status $code)"; cleanup; return 0
     fi
     echo "FAIL  $dir (gRPC h2c — http_version=$ver code=$code)"
-    docker logs "$container" 2>&1 | tail -3 | sed 's/^/      /'; cleanup; return 1
+    dump_container_evidence "$dir"; cleanup; return 1
   fi
 
   # HTTP: expect a 200.
@@ -140,7 +156,7 @@ verify_one() {
     echo "PASS  $dir (HTTP 200 $arg → ${body})"; cleanup; return 0
   fi
   echo "FAIL  $dir (HTTP $code $arg)"
-  docker logs "$container" 2>&1 | tail -3 | sed 's/^/      /'; cleanup; return 1
+  dump_container_evidence "$dir"; cleanup; return 1
 }
 
 # Build the work list: all samples, or just the dirs passed as args.
