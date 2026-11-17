@@ -3,6 +3,22 @@
 Notable changes, newest first. This project follows [semantic versioning](https://semver.org/);
 while the major version is 0, a change to the configuration surface is a minor bump.
 
+## 0.2.2 — 2026-11-16
+
+### Fixed
+
+- **The container image publishes.** It has been missing since 0.2.0: the release job installed melange through
+  an action that fails on current runners (`qemu-user-static` was renamed on Ubuntu 24.04; the fallback then
+  died restarting `apparmor.service`), and underneath that, `apko.yaml` pinned versions Wolfi no longer carries
+  (`apko~1.2.2-r1`, `melange~0.48.2-r1`, `grype~0.111.0-r2`). The job now installs both tools from upstream
+  release archives with pinned SHA-256 digests, enables rootless bubblewrap with the sysctl this repo already
+  uses elsewhere, and pins the image contents to versions that exist.
+- A `vX.Y.Z-rc.N` tag no longer produces an image whose APK reports `0.0.0`. Prerelease tags map to apk's
+  underscore form (`0.2.3-rc.1` becomes `0.2.3_rc1`); any tag shape that cannot be mapped fails the job instead
+  of publishing a mislabelled artifact.
+- The release job can be dry-run from a branch. `workflow_dispatch` builds the image without cutting a release,
+  always under a run-scoped `ci-test-<run_id>` tag, so a manual run cannot reach `latest` or overwrite a release.
+
 ## 0.2.1 — 2026-11-15
 
 ### Fixed
