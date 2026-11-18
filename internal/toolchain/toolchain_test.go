@@ -7,10 +7,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -42,8 +44,14 @@ func TestDownloadReleaseChecksumVerification(t *testing.T) {
 	sum := sha256.Sum256(archive)
 	goodDigest := hex.EncodeToString(sum[:])
 
+	// The asset name has to match the platform the test runs on: the downloader
+	// resolves the release asset for GOOS/GOARCH, so a hardcoded linux_amd64
+	// fixture only passes on Linux. It failed on the macOS runner for exactly
+	// that reason.
+	asset := fmt.Sprintf("mytool_1.0.0_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH)
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("/assets/mytool_1.0.0_linux_amd64.tar.gz", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/assets/"+asset, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write(archive)
 	})
 	srv := httptest.NewServer(mux)
@@ -53,7 +61,7 @@ func TestDownloadReleaseChecksumVerification(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(ghRelease{
 			TagName: "v1.0.0",
 			Assets: []ghAsset{
-				{Name: "mytool_1.0.0_linux_amd64.tar.gz", BrowserDownloadURL: srv.URL + "/assets/mytool_1.0.0_linux_amd64.tar.gz"},
+				{Name: asset, BrowserDownloadURL: srv.URL + "/assets/" + asset},
 			},
 		})
 	})
