@@ -77,7 +77,24 @@ jobs:
           # matrix job hitting api.github.com at once (that's what was
           # producing the 401s).
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./bin/nimbopacks toolchain install
+          # Pinned to the same melange/apko versions the release job builds
+          # and signs with (release.yml's MELANGE_VERSION/APKO_VERSION), by
+          # digest, so an upstream release can't turn this matrix red with no
+          # commit from us. grype is pinned too for the same reason, even
+          # though this job only builds (never scans): an unpinned download
+          # anywhere in CI is the same defect as an unpinned action. Digests
+          # verified against the published linux_amd64 release assets.
+          MELANGE_VERSION: v0.64.1
+          MELANGE_SHA256: 0581280c7a3b0137d37ebc9fd20768da76c5201f991a21717b7d4972100ab149
+          APKO_VERSION: v1.5.0
+          APKO_SHA256: 611cd21aad41dbef2a2698087ebfbb308ba6b0f171797e5571033fb6622ba708
+          GRYPE_VERSION: v0.122.0
+          GRYPE_SHA256: e697e6f7224637df87e267e4318cc027feae99a8e1b80280241d32b9ee5d4920
+        run: |
+          ./bin/nimbopacks toolchain install \
+            --melange-version "$MELANGE_VERSION" --melange-sha256 "$MELANGE_SHA256" \
+            --apko-version "$APKO_VERSION" --apko-sha256 "$APKO_SHA256" \
+            --grype-version "$GRYPE_VERSION" --grype-sha256 "$GRYPE_SHA256"
       - name: Verify sample
         env:
           SAMPLE: ${{ matrix.sample }}

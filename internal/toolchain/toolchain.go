@@ -9,8 +9,9 @@
 //
 // Usage:
 //
-//	nimbopacks toolchain install          # install latest melange + apko
-//	nimbopacks toolchain install --version 0.14.0  # pin a version
+//	nimbopacks toolchain install                      # install latest melange + apko + grype
+//	nimbopacks toolchain install --version v0.14.0    # pin all three to one version
+//	nimbopacks toolchain install --melange-version v0.64.1 --melange-sha256 <digest>  # pin + verify one tool
 //	nimbopacks toolchain status           # show installed versions
 //	nimbopacks toolchain upgrade          # upgrade to latest
 //	nimbopacks toolchain remove           # clean up
@@ -18,8 +19,11 @@ package toolchain
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,9 +40,32 @@ const (
 	melangeRepo    = "chainguard-dev/melange"
 	apkoRepo       = "chainguard-dev/apko"
 	grypeRepo      = "anchore/grype"
-	githubAPI      = "https://api.github.com/repos"
 	maxBinaryBytes = 500 << 20 // 500 MiB
 )
+
+// githubAPI is the GitHub REST API base URL. It's a var, not a const, so
+// tests can point it at an httptest server instead of the real network.
+var githubAPI = "https://api.github.com/repos"
+
+// ToolVersions pins each managed tool to an explicit release tag (e.g.
+// "v0.64.1"). An empty field means "install the latest release" for that
+// tool.
+type ToolVersions struct {
+	Melange string
+	Apko    string
+	Grype   string
+}
+
+// ToolChecksums pins the expected sha256 digest of each tool's downloaded
+// release archive. An empty field skips verification for that tool. CI
+// should always set these alongside ToolVersions, the same way the release
+// workflow pins melange/apko by digest, so a swapped or tampered release
+// asset fails the download instead of silently installing.
+type ToolChecksums struct {
+	Melange string
+	Apko    string
+	Grype   string
+}
 
 // ToolInfo describes an installed tool.
 type ToolInfo struct {
@@ -150,8 +177,10 @@ func normalizeVersion(raw string) string {
 	return raw
 }
 
-// Install downloads and installs melange and apko.
-func Install(ctx context.Context, version string) error {
+// Install downloads and installs melange, apko and grype, pinned per
+// versions/checksums where set (empty fields fall back to "latest release,
+// unverified").
+func Install(ctx context.Context, versions ToolVersions, checksums ToolChecksums) error {
 	binDir := BinDir()
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return fmt.Errorf("creating toolchain dir: %w", err)
@@ -162,7 +191,7 @@ func Install(ctx context.Context, version string) error {
 
 	// Install melange.
 	fmt.Println("  [1/3] melange")
-	melangeVer := version
+	melangeVer := versions.Melange
 	if melangeVer == "" {
 		var err error
 		melangeVer, err = getLatestRelease(ctx, melangeRepo)
@@ -170,14 +199,14 @@ func Install(ctx context.Context, version string) error {
 			return fmt.Errorf("fetching melange version: %w", err)
 		}
 	}
-	if err := downloadRelease(ctx, melangeRepo, melangeVer, "melange", binDir); err != nil {
+	if err := downloadRelease(ctx, melangeRepo, melangeVer, "melange", binDir, checksums.Melange); err != nil {
 		return fmt.Errorf("installing melange: %w", err)
 	}
 	fmt.Printf("  ✓ melange %s\n\n", melangeVer)
 
 	// Install apko.
 	fmt.Println("  [2/3] apko")
-	apkoVer := version
+	apkoVer := versions.Apko
 	if apkoVer == "" {
 		var err error
 		apkoVer, err = getLatestRelease(ctx, apkoRepo)
@@ -185,14 +214,14 @@ func Install(ctx context.Context, version string) error {
 			return fmt.Errorf("fetching apko version: %w", err)
 		}
 	}
-	if err := downloadRelease(ctx, apkoRepo, apkoVer, "apko", binDir); err != nil {
+	if err := downloadRelease(ctx, apkoRepo, apkoVer, "apko", binDir, checksums.Apko); err != nil {
 		return fmt.Errorf("installing apko: %w", err)
 	}
 	fmt.Printf("  ✓ apko %s\n\n", apkoVer)
 
 	// Install grype.
 	fmt.Println("  [3/3] grype")
-	grypeVer := version
+	grypeVer := versions.Grype
 	if grypeVer == "" {
 		var err error
 		grypeVer, err = getLatestRelease(ctx, grypeRepo)
@@ -200,19 +229,19 @@ func Install(ctx context.Context, version string) error {
 			return fmt.Errorf("fetching grype version: %w", err)
 		}
 	}
-	if err := downloadRelease(ctx, grypeRepo, grypeVer, "grype", binDir); err != nil {
+	if err := downloadRelease(ctx, grypeRepo, grypeVer, "grype", binDir, checksums.Grype); err != nil {
 		return fmt.Errorf("installing grype: %w", err)
 	}
 	fmt.Printf("  ✓ grype %s\n\n", grypeVer)
 
 	// Save version info.
-	versions := map[string]string{
+	installed := map[string]string{
 		"melange":      melangeVer,
 		"apko":         apkoVer,
 		"grype":        grypeVer,
 		"installed_at": time.Now().Format(time.RFC3339),
 	}
-	versData, _ := json.MarshalIndent(versions, "", "  ")
+	versData, _ := json.MarshalIndent(installed, "", "  ")
 	if err := os.WriteFile(VersionFile(), versData, 0o644); err != nil {
 		fmt.Printf("  warning: failed to save version info: %v\n", err)
 	}
@@ -262,7 +291,7 @@ func Upgrade(ctx context.Context) error {
 		return nil
 	}
 
-	return Install(ctx, "")
+	return Install(ctx, ToolVersions{}, ToolChecksums{})
 }
 
 // Remove deletes the managed toolchain.
@@ -355,7 +384,7 @@ func getLatestRelease(ctx context.Context, repo string) (string, error) {
 	return release.TagName, nil
 }
 
-func downloadRelease(ctx context.Context, repo, version, toolName, destDir string) error {
+func downloadRelease(ctx context.Context, repo, version, toolName, destDir, expectedSHA256 string) error {
 	// Determine the asset name based on OS/arch.
 	goos := runtime.GOOS
 	goarch := runtime.GOARCH
@@ -437,19 +466,27 @@ func downloadRelease(ctx context.Context, repo, version, toolName, destDir strin
 		return fmt.Errorf("downloading %s: HTTP %d", filepath.Base(downloadURL), dlResp.StatusCode)
 	}
 
+	data, err := io.ReadAll(io.LimitReader(dlResp.Body, maxBinaryBytes))
+	if err != nil {
+		return fmt.Errorf("downloading %s: %w", filepath.Base(downloadURL), err)
+	}
+
+	if expectedSHA256 != "" {
+		sum := sha256.Sum256(data)
+		if got := hex.EncodeToString(sum[:]); !strings.EqualFold(got, expectedSHA256) {
+			return fmt.Errorf("checksum mismatch for %s: expected %s, got %s",
+				filepath.Base(downloadURL), expectedSHA256, got)
+		}
+	}
+
 	destPath := filepath.Join(destDir, toolName)
 
 	if strings.HasSuffix(strings.ToLower(filepath.Base(downloadURL)), ".tar.gz") {
-		if err := extractFromTarGz(dlResp.Body, toolName, destPath); err != nil {
+		if err := extractFromTarGz(bytes.NewReader(data), toolName, destPath); err != nil {
 			return fmt.Errorf("extracting %s: %w", toolName, err)
 		}
 	} else {
-		f, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		if _, err := io.Copy(f, io.LimitReader(dlResp.Body, maxBinaryBytes)); err != nil {
+		if err := os.WriteFile(destPath, data, 0o755); err != nil {
 			return err
 		}
 	}

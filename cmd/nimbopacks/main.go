@@ -396,16 +396,51 @@ func toolchainCmd() *cobra.Command {
 		Short: "Manage the melange + apko toolchain",
 	}
 
-	var toolVersion string
+	var (
+		toolVersion    string
+		melangeVersion string
+		apkoVersion    string
+		grypeVersion   string
+		melangeSHA256  string
+		apkoSHA256     string
+		grypeSHA256    string
+	)
 
 	install := &cobra.Command{
 		Use:   "install",
-		Short: "Download and install melange + apko",
+		Short: "Download and install melange + apko + grype",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return toolchain.Install(context.Background(), toolVersion)
+			versions := toolchain.ToolVersions{
+				Melange: melangeVersion,
+				Apko:    apkoVersion,
+				Grype:   grypeVersion,
+			}
+			if toolVersion != "" {
+				if versions.Melange == "" {
+					versions.Melange = toolVersion
+				}
+				if versions.Apko == "" {
+					versions.Apko = toolVersion
+				}
+				if versions.Grype == "" {
+					versions.Grype = toolVersion
+				}
+			}
+			checksums := toolchain.ToolChecksums{
+				Melange: melangeSHA256,
+				Apko:    apkoSHA256,
+				Grype:   grypeSHA256,
+			}
+			return toolchain.Install(context.Background(), versions, checksums)
 		},
 	}
-	install.Flags().StringVar(&toolVersion, "version", "", "Pin to a specific version")
+	install.Flags().StringVar(&toolVersion, "version", "", "Pin melange, apko and grype to the same version")
+	install.Flags().StringVar(&melangeVersion, "melange-version", "", "Pin melange to a specific version (overrides --version)")
+	install.Flags().StringVar(&apkoVersion, "apko-version", "", "Pin apko to a specific version (overrides --version)")
+	install.Flags().StringVar(&grypeVersion, "grype-version", "", "Pin grype to a specific version (overrides --version)")
+	install.Flags().StringVar(&melangeSHA256, "melange-sha256", "", "Expected sha256 digest of the melange release archive")
+	install.Flags().StringVar(&apkoSHA256, "apko-sha256", "", "Expected sha256 digest of the apko release archive")
+	install.Flags().StringVar(&grypeSHA256, "grype-sha256", "", "Expected sha256 digest of the grype release archive")
 
 	status := &cobra.Command{
 		Use:   "status",
